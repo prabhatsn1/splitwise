@@ -1,0 +1,45 @@
+{
+  "name": "splitwise",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^14.1.0",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-navigation/bottom-tabs": "^7.4.6",
+    "@react-navigation/native": "^7.1.17",
+    "@react-navigation/stack": "^7.4.7",
+    "@types/mongodb": "^4.0.7",
+    "dotenv": "^17.2.1",
+    "expo": "~53.0.20",
+    "expo-camera": "^16.1.11",
+    "expo-font": "~13.3.2",
+    "expo-image-picker": "^16.1.4",
+    "expo-location": "^18.1.6",
+    "expo-status-bar": "~2.2.3",
+    "mongodb": "^6.18.0",
+    "react": "19.0.0",
+    "react-native": "0.79.5",
+    "react-native-crypto": "^2.2.1",
+    "react-native-gesture-handler": "~2.24.0",
+    "react-native-get-random-values": "^1.11.0",
+    "react-native-reanimated": "~3.17.4",
+    "react-native-safe-area-context": "^5.4.0",
+    "react-native-screens": "~4.11.1",
+    "react-native-url-polyfill": "^2.0.0",
+    "react-native-worklets": "^0.4.1",
+    "realm": "^20.2.0",
+    "stream-browserify": "^3.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@types/react": "~19.0.10",
+    "typescript": "~5.8.3"
+  },
+  "private": true
+}

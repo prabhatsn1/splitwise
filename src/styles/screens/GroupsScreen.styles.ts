@@ -1,0 +1,106 @@
+import { StyleSheet } from "react-native";
+
+export const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+  },
+  groupsList: {
+    padding: 16,
+  },
+  groupItem: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  groupIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#f0faf9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  groupDetails: {
+    flex: 1,
+  },
+  groupName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 4,
+  },
+  groupDescription: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 4,
+  },
+  groupMembers: {
+    fontSize: 12,
+    color: "#999",
+  },
+  groupBalance: {
+    alignItems: "flex-end",
+  },
+  balanceAmount: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 2,
+  },
+  balanceText: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 8,
+  },
+  chevron: {
+    marginTop: 4,
+  },
+  emptyState: {
+    alignItems: "center",
+    padding: 48,
+    marginTop: 64,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: "500",
+    color: "#666",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: "#999",
+    textAlign: "center",
+  },
+  fab: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#5bc5a7",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 8,
+  },
+});
