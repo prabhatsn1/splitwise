@@ -8,7 +8,13 @@ import { Ionicons } from "@expo/vector-icons";
 // @ts-ignore: expo-notifications may not be installed yet
 import * as Notifications from "expo-notifications";
 import { NavigationContainerRef } from "@react-navigation/native";
-import { View, Text, TouchableOpacity, StyleSheet, AppState as RNAppState } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  AppState as RNAppState,
+} from "react-native";
 
 // Import context
 import { AppProvider, useApp } from "./src/context/AppContext";
@@ -100,8 +106,10 @@ function TabNavigator() {
 function AppContent() {
   const { state } = useApp();
   const { colors, isDark } = useTheme();
-  const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
-  const notificationResponseListener = useRef<Notifications.EventSubscription>();
+  const navigationRef =
+    useRef<NavigationContainerRef<RootStackParamList>>(null);
+  const notificationResponseListener =
+    useRef<Notifications.EventSubscription>();
 
   // Biometric lock state
   const [biometricLocked, setBiometricLocked] = useState(false);
@@ -140,7 +148,10 @@ function AppContent() {
     notificationResponseListener.current =
       NotificationService.getInstance().addNotificationResponseReceivedListener(
         (response) => {
-          const data = response.notification.request.content.data as Record<string, string>;
+          const data = response.notification.request.content.data as Record<
+            string,
+            string
+          >;
           if (!navigationRef.current) return;
 
           if (data.type === "new_expense" && data.expenseId) {
@@ -148,7 +159,7 @@ function AppContent() {
               expenseId: data.expenseId,
             });
           }
-        }
+        },
       );
 
     return () => {
@@ -176,10 +187,16 @@ function AppContent() {
   // Show biometric lock screen
   if (biometricLocked || !biometricChecked) {
     return (
-      <View style={[lockStyles.container, { backgroundColor: colors.background }]}>
+      <View
+        style={[lockStyles.container, { backgroundColor: colors.background }]}
+      >
         <Ionicons name="lock-closed" size={64} color={colors.primary} />
-        <Text style={[lockStyles.title, { color: colors.textPrimary }]}>Splitwise is Locked</Text>
-        <Text style={[lockStyles.subtitle, { color: colors.textSecondary }]}>Authenticate to continue</Text>
+        <Text style={[lockStyles.title, { color: colors.textPrimary }]}>
+          Splitwise is Locked
+        </Text>
+        <Text style={[lockStyles.subtitle, { color: colors.textSecondary }]}>
+          Authenticate to continue
+        </Text>
         <TouchableOpacity
           style={[lockStyles.button, { backgroundColor: colors.primary }]}
           onPress={async () => {
@@ -200,12 +217,12 @@ function AppContent() {
     <NavigationContainer ref={navigationRef}>
       <StatusBar style={isDark ? "light" : "light"} />
       <Stack.Navigator
-          screenOptions={{
-            headerStyle: { backgroundColor: colors.headerBackground },
-            headerTintColor: colors.headerText,
-            headerTitleStyle: { fontWeight: "bold" },
-          }}
-        >
+        screenOptions={{
+          headerStyle: { backgroundColor: colors.headerBackground },
+          headerTintColor: colors.headerText,
+          headerTitleStyle: { fontWeight: "bold" },
+        }}
+      >
         <Stack.Screen
           name="Main"
           component={TabNavigator}
