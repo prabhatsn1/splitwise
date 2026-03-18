@@ -9,12 +9,14 @@ import {
   Switch,
   Modal,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp } from "@react-navigation/native";
 import { useApp } from "../context/AppContext";
+import { useTheme } from "../context/ThemeContext";
 import {
   RootStackParamList,
   User,
@@ -28,6 +30,13 @@ import { styles } from "../styles/screens/AddExpenseScreen.styles";
 import * as ImagePicker from "expo-image-picker";
 import * as ExpoLocation from "expo-location";
 import ReceiptCamera from "../components/ReceiptCamera";
+import {
+  CURRENCIES,
+  Currency,
+  formatCurrency,
+  convertCurrency,
+} from "../services/currencyService";
+import { parseReceipt } from "../services/ocrService";
 
 type AddExpenseNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -49,15 +58,16 @@ export default function AddExpenseScreen() {
   const navigation = useNavigation<AddExpenseNavigationProp>();
   const route = useRoute<AddExpenseRouteProp>();
   const { state, createExpense } = useApp();
+  const { colors } = useTheme();
 
   // Basic expense fields
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [selectedGroup, setSelectedGroup] = useState(
-    route.params?.groupId || ""
+    route.params?.groupId || "",
   );
   const [selectedPayer, setSelectedPayer] = useState(
-    state.currentUser?.id || ""
+    state.currentUser?.id || "",
   );
   const [splitType, setSplitType] = useState<SplitType>("equal");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
@@ -73,6 +83,13 @@ export default function AddExpenseScreen() {
   const [recurringConfig, setRecurringConfig] = useState<RecurringConfig>({
     frequency: "monthly",
   });
+
+  // Multi-currency
+  const [currency, setCurrency] = useState<string>("INR");
+  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+
+  // OCR
+  const [isOcrProcessing, setIsOcrProcessing] = useState(false);
 
   // Split configuration
   const [customSplits, setCustomSplits] = useState<AdvancedSplit[]>([]);
@@ -97,7 +114,7 @@ export default function AddExpenseScreen() {
     setSelectedMembers((prev) =>
       prev.includes(userId)
         ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
+        : [...prev, userId],
     );
   };
 
@@ -119,7 +136,7 @@ export default function AddExpenseScreen() {
     if (permissionResult.granted === false) {
       Alert.alert(
         "Permission required",
-        "Permission to access camera roll is required!"
+        "Permission to access camera roll is required!",
       );
       return;
     }
@@ -143,7 +160,7 @@ export default function AddExpenseScreen() {
     if (status !== "granted") {
       Alert.alert(
         "Permission denied",
-        "Permission to access location was denied"
+        "Permission to access location was denied",
       );
       return;
     }
@@ -181,7 +198,7 @@ export default function AddExpenseScreen() {
           amount: newSplitType === "exact" ? 0 : undefined,
           percentage: newSplitType === "percentage" ? 0 : undefined,
           shares: newSplitType === "shares" ? 1 : undefined,
-        }))
+        })),
       );
     }
   };
@@ -189,12 +206,12 @@ export default function AddExpenseScreen() {
   const updateCustomSplit = (
     userId: string,
     field: keyof AdvancedSplit,
-    value: number
+    value: number,
   ) => {
     setCustomSplits((prev) =>
       prev.map((split) =>
-        split.userId === userId ? { ...split, [field]: value } : split
-      )
+        split.userId === userId ? { ...split, [field]: value } : split,
+      ),
     );
   };
 
@@ -206,7 +223,7 @@ export default function AddExpenseScreen() {
     if (splitType === "exact") {
       const total = customSplits.reduce(
         (sum, split) => sum + (split.amount || 0),
-        0
+        0,
       );
       return Math.abs(total - totalAmount) < 0.01;
     }
@@ -214,7 +231,7 @@ export default function AddExpenseScreen() {
     if (splitType === "percentage") {
       const total = customSplits.reduce(
         (sum, split) => sum + (split.percentage || 0),
-        0
+        0,
       );
       return Math.abs(total - 100) < 0.01;
     }
@@ -249,7 +266,7 @@ export default function AddExpenseScreen() {
 
     const payer = availableMembers.find((m) => m.id === selectedPayer);
     const splitMembers = availableMembers.filter((m) =>
-      selectedMembers.includes(m.id)
+      selectedMembers.includes(m.id),
     );
 
     if (!payer) {
@@ -274,6 +291,7 @@ export default function AddExpenseScreen() {
     const newExpenseData: Omit<Expense, "id"> = {
       description: description.trim(),
       amount: expenseAmount,
+      currency,
       paidBy: payer,
       splitBetween: splitMembers,
       splitType,
@@ -303,8 +321,44 @@ export default function AddExpenseScreen() {
     }
   };
 
-  const handleCaptureReceipt = (imageUri: string) => {
+  const handleCaptureReceipt = async (imageUri: string) => {
     setReceipt(imageUri);
+    // Automatically run OCR on captured receipt
+    await handleOcrScan(imageUri);
+  };
+
+  const handleOcrScan = async (imageUri: string) => {
+    setIsOcrProcessing(true);
+    try {
+      const result = await parseReceipt(imageUri);
+      let prefilled: string[] = [];
+
+      if (result.amount !== null && result.amount > 0) {
+        setAmount(result.amount.toFixed(2));
+        prefilled.push(`Amount: ${result.amount.toFixed(2)}`);
+      }
+      if (result.description) {
+        setDescription(result.description);
+        prefilled.push(`Description: ${result.description}`);
+      }
+
+      if (prefilled.length > 0) {
+        Alert.alert(
+          "Receipt Scanned",
+          `Pre-filled from receipt:\n${prefilled.join("\n")}`,
+          [{ text: "OK" }],
+        );
+      } else {
+        Alert.alert(
+          "OCR Result",
+          "Could not extract amount or description from the receipt. Please fill in manually.",
+        );
+      }
+    } catch (error) {
+      Alert.alert("OCR Error", "Failed to process receipt image.");
+    } finally {
+      setIsOcrProcessing(false);
+    }
   };
 
   const handleRemoveReceipt = () => {
@@ -326,17 +380,49 @@ export default function AddExpenseScreen() {
           />
         </View>
 
-        {/* Amount */}
+        {/* Amount + Currency */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Amount (₹)</Text>
-          <TextInput
-            style={styles.input}
-            value={amount}
-            onChangeText={setAmount}
-            placeholder="0.00"
-            keyboardType="numeric"
-            placeholderTextColor="#999"
-          />
+          <Text style={styles.label}>Amount</Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TouchableOpacity
+              style={{
+                backgroundColor: colors.backgroundLight,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+              onPress={() => setShowCurrencyModal(true)}
+            >
+              <Text
+                style={{
+                  fontSize: 16,
+                  color: colors.textPrimary,
+                  fontWeight: "600",
+                }}
+              >
+                {CURRENCIES.find((c) => c.code === currency)?.symbol ??
+                  currency}
+              </Text>
+              <Ionicons
+                name="chevron-down"
+                size={16}
+                color={colors.textSecondary}
+                style={{ marginLeft: 4 }}
+              />
+            </TouchableOpacity>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={amount}
+              onChangeText={setAmount}
+              placeholder="0.00"
+              keyboardType="numeric"
+              placeholderTextColor="#999"
+            />
+          </View>
         </View>
 
         {/* Category Selection */}
@@ -388,7 +474,35 @@ export default function AddExpenseScreen() {
           {receipt ? (
             <View style={styles.receiptPreview}>
               <Image source={{ uri: receipt }} style={styles.receiptImage} />
+              {isOcrProcessing && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 8,
+                  }}
+                >
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text
+                    style={{
+                      marginLeft: 8,
+                      fontSize: 13,
+                      color: colors.textSecondary,
+                    }}
+                  >
+                    Scanning receipt with OCR...
+                  </Text>
+                </View>
+              )}
               <View style={styles.receiptActions}>
+                <TouchableOpacity
+                  style={styles.receiptActionButton}
+                  onPress={() => handleOcrScan(receipt)}
+                  disabled={isOcrProcessing}
+                >
+                  <Ionicons name="scan" size={16} color={colors.primary} />
+                  <Text style={styles.receiptActionText}>Re-scan OCR</Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.receiptActionButton}
                   onPress={() => setShowReceiptCamera(true)}
@@ -589,7 +703,7 @@ export default function AddExpenseScreen() {
                     {type.charAt(0).toUpperCase() + type.slice(1)}
                   </Text>
                 </TouchableOpacity>
-              )
+              ),
             )}
           </View>
         </View>
@@ -600,7 +714,7 @@ export default function AddExpenseScreen() {
             <Text style={styles.label}>Configure Splits</Text>
             {customSplits.map((split) => {
               const member = availableMembers.find(
-                (m) => m.id === split.userId
+                (m) => m.id === split.userId,
               );
               return (
                 <View key={split.userId} style={styles.customSplitRow}>
@@ -611,8 +725,8 @@ export default function AddExpenseScreen() {
                       splitType === "exact"
                         ? split.amount?.toString() || "0"
                         : splitType === "percentage"
-                        ? split.percentage?.toString() || "0"
-                        : split.shares?.toString() || "1"
+                          ? split.percentage?.toString() || "0"
+                          : split.shares?.toString() || "1"
                     }
                     onChangeText={(value) => {
                       const numValue = parseFloat(value) || 0;
@@ -620,8 +734,8 @@ export default function AddExpenseScreen() {
                         splitType === "exact"
                           ? "amount"
                           : splitType === "percentage"
-                          ? "percentage"
-                          : "shares";
+                            ? "percentage"
+                            : "shares";
                       updateCustomSplit(split.userId, field, numValue);
                     }}
                     keyboardType="numeric"
@@ -629,8 +743,8 @@ export default function AddExpenseScreen() {
                       splitType === "exact"
                         ? "Amount"
                         : splitType === "percentage"
-                        ? "%"
-                        : "Shares"
+                          ? "%"
+                          : "Shares"
                     }
                   />
                 </View>
@@ -652,14 +766,14 @@ export default function AddExpenseScreen() {
                     <View key={userId} style={styles.splitItem}>
                       <Text style={styles.splitMemberName}>{member?.name}</Text>
                       <Text style={styles.splitAmount}>
-                        ₹{splitAmount.toFixed(2)}
+                        {formatCurrency(splitAmount, currency)}
                       </Text>
                     </View>
                   );
                 })
               : customSplits.map((split) => {
                   const member = availableMembers.find(
-                    (m) => m.id === split.userId
+                    (m) => m.id === split.userId,
                   );
                   let displayAmount = 0;
 
@@ -671,7 +785,7 @@ export default function AddExpenseScreen() {
                   } else if (splitType === "shares") {
                     const totalShares = customSplits.reduce(
                       (sum, s) => sum + (s.shares || 0),
-                      0
+                      0,
                     );
                     displayAmount =
                       totalShares > 0
@@ -684,7 +798,7 @@ export default function AddExpenseScreen() {
                     <View key={split.userId} style={styles.splitItem}>
                       <Text style={styles.splitMemberName}>{member?.name}</Text>
                       <Text style={styles.splitAmount}>
-                        ₹{displayAmount.toFixed(2)}
+                        {formatCurrency(displayAmount, currency)}
                       </Text>
                     </View>
                   );
@@ -761,6 +875,39 @@ export default function AddExpenseScreen() {
             >
               <Text style={styles.modalSaveButtonText}>Done</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Currency Modal */}
+      <Modal
+        visible={showCurrencyModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCurrencyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: "70%" }]}>
+            <Text style={styles.modalTitle}>Select Currency</Text>
+            <ScrollView>
+              {CURRENCIES.map((cur) => (
+                <TouchableOpacity
+                  key={cur.code}
+                  style={styles.modalOption}
+                  onPress={() => {
+                    setCurrency(cur.code);
+                    setShowCurrencyModal(false);
+                  }}
+                >
+                  <Text style={styles.modalOptionText}>
+                    {cur.symbol} {cur.code} — {cur.name}
+                  </Text>
+                  {currency === cur.code && (
+                    <Ionicons name="checkmark" size={20} color="#5bc5a7" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </View>
       </Modal>

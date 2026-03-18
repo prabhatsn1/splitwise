@@ -15,20 +15,21 @@ export default function GroupsScreen() {
 
   const calculateGroupBalance = (group: Group) => {
     const groupExpenses = state.expenses.filter(
-      (expense) => expense.groupId === group.id
+      (expense) => expense.groupId === group.id,
     );
     let totalOwed = 0;
     let totalOwing = 0;
 
     groupExpenses.forEach((expense) => {
       const userSplit = expense.splits.find(
-        (split) => split.userId === state.currentUser?.id
+        (split) => split.userId === state.currentUser?.id,
       );
       if (userSplit) {
+        const splitAmount = userSplit.amount ?? 0;
         if (expense.paidBy.id === state.currentUser?.id) {
-          totalOwed += expense.amount - userSplit.amount;
+          totalOwed += expense.amount - splitAmount;
         } else {
-          totalOwing += userSplit.amount;
+          totalOwing += splitAmount;
         }
       }
     });
@@ -39,11 +40,16 @@ export default function GroupsScreen() {
   const renderGroupItem = ({ item: group }: { item: Group }) => {
     const balance = calculateGroupBalance(group);
     const groupExpenses = state.expenses.filter(
-      (expense) => expense.groupId === group.id
+      (expense) => expense.groupId === group.id,
     );
 
     return (
-      <TouchableOpacity style={styles.groupItem}>
+      <TouchableOpacity
+        style={styles.groupItem}
+        onPress={() =>
+          navigation.navigate("GroupDetails", { groupId: group.id })
+        }
+      >
         <View style={styles.groupIcon}>
           <Ionicons name="people" size={24} color="#5bc5a7" />
         </View>
