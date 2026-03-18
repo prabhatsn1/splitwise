@@ -8,12 +8,17 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
 import { useApp } from "../context/AppContext";
-import { User } from "../types";
+import { User, RootStackParamList } from "../types";
 import { styles } from "../styles/screens/FriendsScreen.styles";
+
+type FriendsNavProp = StackNavigationProp<RootStackParamList>;
 
 export default function FriendsScreen() {
   const { state, addFriend } = useApp();
+  const navigation = useNavigation<FriendsNavProp>();
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [friendName, setFriendName] = useState("");
   const [friendEmail, setFriendEmail] = useState("");
@@ -21,7 +26,7 @@ export default function FriendsScreen() {
   const calculateFriendBalance = (friend: User) => {
     // Use centralized balance calculation from AppContext
     const userBalance = state.balances.find(
-      (balance) => balance.userId === state.currentUser?.id
+      (balance) => balance.userId === state.currentUser?.id,
     );
 
     if (userBalance) {
@@ -38,10 +43,10 @@ export default function FriendsScreen() {
 
     state.expenses.forEach((expense) => {
       const userSplit = expense.splits.find(
-        (split) => split.userId === state.currentUser?.id
+        (split) => split.userId === state.currentUser?.id,
       );
       const friendSplit = expense.splits.find(
-        (split) => split.userId === friend.id
+        (split) => split.userId === friend.id,
       );
 
       if (userSplit && friendSplit) {
@@ -89,7 +94,10 @@ export default function FriendsScreen() {
     const balance = calculateFriendBalance(friend);
 
     return (
-      <TouchableOpacity style={styles.friendItem}>
+      <TouchableOpacity
+        style={styles.friendItem}
+        onPress={() => navigation.navigate("SettleUp", { userId: friend.id })}
+      >
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
             {friend.name.charAt(0).toUpperCase()}
@@ -113,6 +121,22 @@ export default function FriendsScreen() {
               <Text style={styles.balanceText}>
                 {balance >= 0 ? "owes you" : "you owe"}
               </Text>
+              <TouchableOpacity
+                onPress={() =>
+                  navigation.navigate("SettleUp", { userId: friend.id })
+                }
+              >
+                <Text
+                  style={{
+                    color: "#5bc5a7",
+                    fontSize: 12,
+                    fontWeight: "600",
+                    marginTop: 2,
+                  }}
+                >
+                  Settle up
+                </Text>
+              </TouchableOpacity>
             </>
           ) : (
             <Text style={styles.settledText}>Settled up</Text>
