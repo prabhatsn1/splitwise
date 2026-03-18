@@ -109,7 +109,7 @@ function AppContent() {
   const navigationRef =
     useRef<NavigationContainerRef<RootStackParamList>>(null);
   const notificationResponseListener =
-    useRef<Notifications.EventSubscription>();
+    useRef<Notifications.EventSubscription>(undefined);
 
   // Biometric lock state
   const [biometricLocked, setBiometricLocked] = useState(false);
