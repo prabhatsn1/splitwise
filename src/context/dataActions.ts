@@ -1,10 +1,12 @@
 import { useCallback } from "react";
 import { AppState, AppAction } from "./types";
-import { User, Group, Expense, Balance } from "../types";
+import { User, Group, Expense, Balance, Settlement } from "../types";
 import { UserService } from "../services/userService";
 import { GroupService } from "../services/groupService";
 import { ExpenseService } from "../services/expenseService";
 import LocalStorageService from "../services/localStorageService";
+import NotificationService from "../services/notificationService";
+import SyncQueueService from "../services/syncQueueService";
 
 export function useDataActions(
   state: AppState,
@@ -12,7 +14,7 @@ export function useDataActions(
   userService: UserService,
   groupService: GroupService,
   expenseService: ExpenseService,
-  localStorage: LocalStorageService
+  localStorage: LocalStorageService,
 ) {
   const calculateUserBalance = useCallback(async (): Promise<void> => {
     if (!state.currentUser) return;
@@ -33,21 +35,21 @@ export function useDataActions(
 
         localData.expenses.forEach((expense) => {
           const userParticipated = expense.splitBetween?.some(
-            (p) => p.id === currentUserId
+            (p) => p.id === currentUserId,
           );
           const userPaid = expense.paidBy.id === currentUserId;
 
           if (!userParticipated && !userPaid) return;
 
           const userSplit = expense.splits?.find(
-            (s) => s.userId === currentUserId
+            (s) => s.userId === currentUserId,
           );
 
           if (userPaid) {
             expense.splitBetween?.forEach((participant) => {
               if (participant.id !== currentUserId) {
                 const participantSplit = expense.splits?.find(
-                  (s) => s.userId === participant.id
+                  (s) => s.userId === participant.id,
                 );
 
                 if (participantSplit && (participantSplit.amount || 0) > 0) {
@@ -87,11 +89,11 @@ export function useDataActions(
 
         const totalOwed = Object.values(balance.owedBy).reduce(
           (sum, amount) => sum + amount,
-          0
+          0,
         );
         const totalOwes = Object.values(balance.owes).reduce(
           (sum, amount) => sum + amount,
-          0
+          0,
         );
         balance.totalBalance = totalOwed - totalOwes;
 
@@ -119,7 +121,7 @@ export function useDataActions(
         dispatch({ type: "SET_GROUPS", payload: localData.groups });
       } else {
         const groups = await groupService.getGroupsByUserId(
-          state.currentUser.id
+          state.currentUser.id,
         );
         dispatch({ type: "SET_GROUPS", payload: groups });
         await localStorage.saveGroups(groups);
@@ -145,12 +147,32 @@ export function useDataActions(
             id: localStorage.generateOfflineId(),
           };
           await localStorage.addGroup(group);
-        } else {
-          group = await groupService.createGroup(
+          // Queue for sync when back online
+          const syncQueue = SyncQueueService.getInstance();
+          await syncQueue.enqueue("CREATE_GROUP", {
             groupData,
-            state.currentUser.id
-          );
-          await localStorage.addGroup(group);
+            userId: state.currentUser.id,
+          });
+        } else {
+          try {
+            group = await groupService.createGroup(
+              groupData,
+              state.currentUser.id,
+            );
+            await localStorage.addGroup(group);
+          } catch (backendError) {
+            // Fallback: save locally and queue
+            group = {
+              ...groupData,
+              id: localStorage.generateOfflineId(),
+            };
+            await localStorage.addGroup(group);
+            const syncQueue = SyncQueueService.getInstance();
+            await syncQueue.enqueue("CREATE_GROUP", {
+              groupData,
+              userId: state.currentUser.id,
+            });
+          }
         }
 
         dispatch({ type: "ADD_GROUP", payload: group });
@@ -159,7 +181,7 @@ export function useDataActions(
         dispatch({ type: "SET_ERROR", payload: "Failed to create group" });
       }
     },
-    [state.currentUser, state.isOfflineMode, groupService, localStorage]
+    [state.currentUser, state.isOfflineMode, groupService, localStorage],
   );
 
   const loadUserExpenses = useCallback(async (): Promise<void> => {
@@ -171,7 +193,7 @@ export function useDataActions(
         dispatch({ type: "SET_EXPENSES", payload: localData.expenses });
       } else {
         const expenses = await expenseService.getExpensesByUserId(
-          state.currentUser.id
+          state.currentUser.id,
         );
         dispatch({ type: "SET_EXPENSES", payload: expenses });
         await localStorage.saveExpenses(expenses);
@@ -195,54 +217,222 @@ export function useDataActions(
           await localStorage.addExpense(expense);
           dispatch({ type: "ADD_EXPENSE", payload: expense });
         } else {
-          if (expenseData.recurring) {
-            // Handle recurring expenses
-            const expenses = await expenseService.createRecurringExpenses(
-              expenseData
-            );
+          // --- Optimistic UI: insert immediately with a temp ID ---
+          const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          const optimisticExpense: Expense = {
+            ...expenseData,
+            id: tempId,
+          } as Expense;
 
-            // Add all recurring expenses to local storage and state
-            for (const expense of expenses) {
-              await localStorage.addExpense(expense);
-              dispatch({ type: "ADD_EXPENSE", payload: expense });
+          // Show in UI right away
+          dispatch({ type: "ADD_EXPENSE", payload: optimisticExpense });
+
+          if (expenseData.recurring) {
+            // Handle recurring expenses – replace the optimistic one with real backend data
+            try {
+              const expenses =
+                await expenseService.createRecurringExpenses(expenseData);
+
+              // Remove the optimistic placeholder
+              dispatch({ type: "DELETE_EXPENSE", payload: tempId });
+
+              for (const expense of expenses) {
+                await localStorage.addExpense(expense);
+                dispatch({ type: "ADD_EXPENSE", payload: expense });
+                dispatch({
+                  type: "MARK_EXPENSE_CONFIRMED",
+                  payload: expense.id,
+                });
+              }
+            } catch (backendError) {
+              // Rollback the optimistic expense
+              dispatch({ type: "DELETE_EXPENSE", payload: tempId });
+              throw backendError;
             }
           } else {
-            // Handle single expense
-            const expense = await expenseService.createExpense(expenseData);
-            await localStorage.addExpense(expense);
-            dispatch({ type: "ADD_EXPENSE", payload: expense });
+            // Single expense – reconcile temp → real in background
+            try {
+              const expense = await expenseService.createExpense(expenseData);
+              await localStorage.addExpense(expense);
+
+              // Swap temp entry for the real one
+              dispatch({
+                type: "REPLACE_EXPENSE",
+                payload: { tempId, expense },
+              });
+
+              // Fire notification for single expense
+              if (state.currentUser) {
+                await NotificationService.getInstance()
+                  .notifyNewExpense(expense, state.currentUser)
+                  .catch(() => {
+                    /* swallow notification errors */
+                  });
+
+                // Schedule recurring reminder if applicable
+                if (expense.recurring?.endDate) {
+                  const nextDue = new Date(expense.date);
+                  if (expense.recurring.frequency === "weekly") {
+                    nextDue.setDate(nextDue.getDate() + 7);
+                  } else if (expense.recurring.frequency === "monthly") {
+                    nextDue.setMonth(nextDue.getMonth() + 1);
+                  } else {
+                    nextDue.setFullYear(nextDue.getFullYear() + 1);
+                  }
+                  if (nextDue <= new Date(expense.recurring.endDate)) {
+                    await NotificationService.getInstance()
+                      .scheduleRecurringExpenseReminder(expense, nextDue)
+                      .catch(() => {});
+                  }
+                }
+              }
+            } catch (backendError) {
+              // Rollback the optimistic expense
+              dispatch({ type: "DELETE_EXPENSE", payload: tempId });
+              throw backendError;
+            }
           }
         }
 
         await calculateUserBalance();
       } catch (error) {
-        console.error("Failed to create expense:", error);
-        dispatch({ type: "SET_ERROR", payload: "Failed to create expense" });
+        // Queue the failed action for background sync
+        console.error(
+          "Failed to create expense, queuing for later sync:",
+          error,
+        );
+        const syncQueue = SyncQueueService.getInstance();
+        await syncQueue.enqueue("CREATE_EXPENSE", expenseData);
+        // Keep the optimistic entry in local storage for offline access
+        dispatch({
+          type: "SET_ERROR",
+          payload:
+            "Expense saved locally. It will sync when you're back online.",
+        });
       }
     },
-    [state.isOfflineMode, expenseService, localStorage, calculateUserBalance]
+    [
+      state.isOfflineMode,
+      state.currentUser,
+      expenseService,
+      localStorage,
+      calculateUserBalance,
+    ],
+  );
+
+  const updateExpense = useCallback(
+    async (
+      expenseId: string,
+      expenseData: Partial<Omit<Expense, "id">>,
+    ): Promise<void> => {
+      try {
+        let updatedExpense: Expense | null = null;
+
+        if (state.isOfflineMode) {
+          const localData =
+            await LocalStorageService.getInstance().getLocalData();
+          const existing = localData.expenses.find((e) => e.id === expenseId);
+          if (existing) {
+            updatedExpense = { ...existing, ...expenseData };
+            // Update in local storage via delete + add
+            await localStorage.deleteExpense(expenseId);
+            await localStorage.addExpense(updatedExpense);
+          }
+        } else {
+          updatedExpense = await expenseService.updateExpense(
+            expenseId,
+            expenseData,
+          );
+          if (updatedExpense) {
+            await localStorage.deleteExpense(expenseId);
+            await localStorage.addExpense(updatedExpense);
+          }
+        }
+
+        if (updatedExpense) {
+          dispatch({ type: "UPDATE_EXPENSE", payload: updatedExpense });
+          await calculateUserBalance();
+        }
+      } catch (error) {
+        console.error("Failed to update expense:", error);
+        dispatch({ type: "SET_ERROR", payload: "Failed to update expense" });
+      }
+    },
+    [state.isOfflineMode, expenseService, localStorage, calculateUserBalance],
+  );
+
+  const settleUp = useCallback(
+    async (
+      toUserId: string,
+      amount: number,
+      note?: string,
+      paymentMethod?: string,
+    ): Promise<void> => {
+      if (!state.currentUser) return;
+
+      try {
+        const settlement: Settlement = {
+          id: localStorage.generateOfflineId(),
+          fromUserId: state.currentUser.id,
+          toUserId,
+          amount,
+          date: new Date(),
+          note,
+        };
+
+        dispatch({ type: "ADD_SETTLEMENT", payload: settlement });
+
+        // Notify about the settlement
+        const toUser = state.friends.find((f) => f.id === toUserId);
+        if (toUser) {
+          await NotificationService.getInstance().notifySettlement(
+            state.currentUser,
+            toUser,
+            amount,
+          );
+        }
+
+        await calculateUserBalance();
+      } catch (error) {
+        console.error("Failed to record settlement:", error);
+        dispatch({ type: "SET_ERROR", payload: "Failed to record settlement" });
+      }
+    },
+    [state.currentUser, state.friends, localStorage, calculateUserBalance],
   );
 
   const deleteExpense = useCallback(
     async (expenseId: string): Promise<void> => {
       try {
+        // Optimistic delete from UI immediately
+        dispatch({ type: "DELETE_EXPENSE", payload: expenseId });
+
         if (state.isOfflineMode) {
           await localStorage.deleteExpense(expenseId);
+          // Queue for sync
+          const syncQueue = SyncQueueService.getInstance();
+          await syncQueue.enqueue("DELETE_EXPENSE", { expenseId });
         } else {
-          const success = await expenseService.deleteExpense(expenseId);
-          if (success) {
+          try {
+            const success = await expenseService.deleteExpense(expenseId);
+            if (success) {
+              await localStorage.deleteExpense(expenseId);
+            }
+          } catch (backendError) {
+            // Queue for later sync, keep optimistic delete
+            const syncQueue = SyncQueueService.getInstance();
+            await syncQueue.enqueue("DELETE_EXPENSE", { expenseId });
             await localStorage.deleteExpense(expenseId);
           }
         }
 
-        dispatch({ type: "DELETE_EXPENSE", payload: expenseId });
         await calculateUserBalance();
       } catch (error) {
         console.error("Failed to delete expense:", error);
         dispatch({ type: "SET_ERROR", payload: "Failed to delete expense" });
       }
     },
-    [state.isOfflineMode, expenseService, localStorage, calculateUserBalance]
+    [state.isOfflineMode, expenseService, localStorage, calculateUserBalance],
   );
 
   const getExpensesByCategory = useCallback(
@@ -253,12 +443,12 @@ export function useDataActions(
         if (state.isOfflineMode) {
           const localData = await localStorage.getLocalData();
           return localData.expenses.filter(
-            (expense) => expense.category === category
+            (expense) => expense.category === category,
           );
         } else {
           return await expenseService.getExpensesByCategory(
             category,
-            state.currentUser.id
+            state.currentUser.id,
           );
         }
       } catch (error) {
@@ -266,7 +456,7 @@ export function useDataActions(
         return [];
       }
     },
-    [state.currentUser, state.isOfflineMode, expenseService, localStorage]
+    [state.currentUser, state.isOfflineMode, expenseService, localStorage],
   );
 
   const getExpensesByTags = useCallback(
@@ -278,12 +468,12 @@ export function useDataActions(
           const localData = await localStorage.getLocalData();
           return localData.expenses.filter(
             (expense) =>
-              expense.tags && expense.tags.some((tag) => tags.includes(tag))
+              expense.tags && expense.tags.some((tag) => tags.includes(tag)),
           );
         } else {
           return await expenseService.getExpensesByTags(
             tags,
-            state.currentUser.id
+            state.currentUser.id,
           );
         }
       } catch (error) {
@@ -291,14 +481,14 @@ export function useDataActions(
         return [];
       }
     },
-    [state.currentUser, state.isOfflineMode, expenseService, localStorage]
+    [state.currentUser, state.isOfflineMode, expenseService, localStorage],
   );
 
   const getExpensesByLocation = useCallback(
     async (
       latitude: number,
       longitude: number,
-      radiusKm: number = 1
+      radiusKm: number = 1,
     ): Promise<Expense[]> => {
       if (!state.currentUser) return [];
 
@@ -312,7 +502,7 @@ export function useDataActions(
               latitude,
               longitude,
               expense.location.latitude,
-              expense.location.longitude
+              expense.location.longitude,
             );
             return distance <= radiusKm;
           });
@@ -321,7 +511,7 @@ export function useDataActions(
             latitude,
             longitude,
             radiusKm,
-            state.currentUser.id
+            state.currentUser.id,
           );
         }
       } catch (error) {
@@ -329,7 +519,7 @@ export function useDataActions(
         return [];
       }
     },
-    [state.currentUser, state.isOfflineMode, expenseService, localStorage]
+    [state.currentUser, state.isOfflineMode, expenseService, localStorage],
   );
 
   // Helper function for distance calculation
@@ -337,7 +527,7 @@ export function useDataActions(
     lat1: number,
     lon1: number,
     lat2: number,
-    lon2: number
+    lon2: number,
   ): number => {
     const R = 6371; // Earth's radius in kilometers
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -360,7 +550,7 @@ export function useDataActions(
       } else {
         const allUsers = await userService.getAllUsers();
         const friends = allUsers.filter(
-          (user) => user.id !== state.currentUser?.id
+          (user) => user.id !== state.currentUser?.id,
         );
         dispatch({ type: "SET_FRIENDS", payload: friends });
         await localStorage.saveFriends(friends);
@@ -395,7 +585,7 @@ export function useDataActions(
         dispatch({ type: "SET_ERROR", payload: "Failed to add friend" });
       }
     },
-    [state.isOfflineMode, userService, localStorage]
+    [state.isOfflineMode, userService, localStorage],
   );
 
   return {
@@ -403,7 +593,9 @@ export function useDataActions(
     createGroup,
     loadUserExpenses,
     createExpense,
+    updateExpense,
     deleteExpense,
+    settleUp,
     loadFriends,
     addFriend,
     calculateUserBalance,
