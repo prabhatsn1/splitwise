@@ -10,6 +10,7 @@ import { GroupService } from "../services/groupService";
 import { ExpenseService } from "../services/expenseService";
 import DatabaseService from "../services/database";
 import LocalStorageService from "../services/localStorageService";
+import SyncQueueService from "../services/syncQueueService";
 
 // Import modular components
 import { AppContextType, initialState } from "./types";
@@ -35,7 +36,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     userService,
     groupService,
     expenseService,
-    localStorage
+    localStorage,
   );
 
   // Get auth actions
@@ -49,7 +50,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dataActions.loadUserGroups,
     dataActions.loadUserExpenses,
     dataActions.loadFriends,
-    dataActions.calculateUserBalance
+    dataActions.calculateUserBalance,
   );
 
   // Initialize app
@@ -76,7 +77,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             try {
               await DatabaseService.getInstance().connect();
               const user = await userService.getUserByEmail(
-                localData.currentUser.email
+                localData.currentUser.email,
               );
 
               if (user) {
@@ -90,6 +91,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
                   dataActions.loadFriends(),
                   dataActions.calculateUserBalance(),
                 ]);
+
+                // Flush any queued offline mutations
+                const syncQueue = SyncQueueService.getInstance();
+                if (syncQueue.pendingCount > 0) {
+                  console.log(
+                    `[AppContext] Flushing ${syncQueue.pendingCount} queued sync items`,
+                  );
+                  syncQueue
+                    .flush(user.id, dispatch)
+                    .catch((err) =>
+                      console.error(
+                        "[AppContext] Sync queue flush error:",
+                        err,
+                      ),
+                    );
+                }
               } else {
                 dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
               }
