@@ -1,11 +1,63 @@
-import React from "react";
-import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Switch,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
-import { styles } from "../styles/screens/AccountScreen.styles";
+import { useTheme, ThemeMode } from "../context/ThemeContext";
+import BiometricService from "../services/biometricService";
+import SyncQueueService from "../services/syncQueueService";
+import { exportToCSV, exportToPDF } from "../services/exportService";
 
 export default function AccountScreen() {
   const { state, logout, syncData } = useApp();
+  const { colors, isDark, themeMode, setThemeMode } = useTheme();
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricLabel, setBiometricLabel] = useState("Biometrics");
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      const bio = BiometricService.getInstance();
+      const available = await bio.isAvailable();
+      setBiometricAvailable(available);
+      if (available) {
+        const enabled = await bio.isBiometricEnabled();
+        setBiometricEnabled(enabled);
+        const label = await bio.getBiometricLabel();
+        setBiometricLabel(label);
+      }
+    })();
+  }, []);
+
+  // Track pending sync queue
+  useEffect(() => {
+    const syncQueue = SyncQueueService.getInstance();
+    setPendingSyncCount(syncQueue.pendingCount);
+    const unsub = syncQueue.addProgressListener((progress) => {
+      setPendingSyncCount(syncQueue.pendingCount);
+    });
+    return unsub;
+  }, []);
+
+  const handleToggleBiometric = async (value: boolean) => {
+    const bio = BiometricService.getInstance();
+    if (value) {
+      // Verify identity before enabling
+      const success = await bio.authenticate(
+        `Confirm ${biometricLabel} to enable`,
+      );
+      if (!success) return;
+    }
+    await bio.setBiometricEnabled(value);
+    setBiometricEnabled(value);
+  };
 
   const calculateTotalBalance = () => {
     let totalOwed = 0;
@@ -13,7 +65,7 @@ export default function AccountScreen() {
 
     state.expenses.forEach((expense) => {
       const userSplit = expense.splits.find(
-        (split) => split.userId === state.currentUser?.id
+        (split) => split.userId === state.currentUser?.id,
       );
       if (userSplit) {
         if (expense.paidBy.id === state.currentUser?.id) {
@@ -30,10 +82,32 @@ export default function AccountScreen() {
   const { totalOwed, totalOwing, netBalance } = calculateTotalBalance();
 
   const handleExportData = () => {
-    Alert.alert(
-      "Export Data",
-      "This feature would allow you to export your expense data."
-    );
+    Alert.alert("Export Data", `Export ${state.expenses.length} expenses as:`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "CSV",
+        onPress: async () => {
+          try {
+            await exportToCSV(state.expenses);
+          } catch {
+            Alert.alert("Error", "Failed to export CSV.");
+          }
+        },
+      },
+      {
+        text: "PDF",
+        onPress: async () => {
+          try {
+            await exportToPDF(
+              state.expenses,
+              state.currentUser?.name ?? "User",
+            );
+          } catch {
+            Alert.alert("Error", "Failed to export PDF.");
+          }
+        },
+      },
+    ]);
   };
 
   const handleSettings = () => {
@@ -57,7 +131,7 @@ export default function AccountScreen() {
           style: "destructive",
           onPress: logout,
         },
-      ]
+      ],
     );
   };
 
@@ -80,21 +154,49 @@ export default function AccountScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Profile Section */}
-      <View style={styles.profileSection}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
+      <View
+        style={{
+          backgroundColor: colors.card,
+          alignItems: "center",
+          padding: 32,
+          marginBottom: 16,
+        }}
+      >
+        <View
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: 40,
+            backgroundColor: colors.primary,
+            justifyContent: "center",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
+          <Text style={{ color: "#fff", fontSize: 32, fontWeight: "bold" }}>
             {state.currentUser?.name.charAt(0).toUpperCase()}
           </Text>
         </View>
-        <Text style={styles.userName}>{state.currentUser?.name}</Text>
-        <Text style={styles.userEmail}>{state.currentUser?.email}</Text>
+        <Text
+          style={{
+            fontSize: 24,
+            fontWeight: "bold",
+            color: colors.textPrimary,
+            marginBottom: 4,
+          }}
+        >
+          {state.currentUser?.name}
+        </Text>
+        <Text style={{ fontSize: 16, color: colors.textSecondary }}>
+          {state.currentUser?.email}
+        </Text>
         {state.isOfflineMode && (
           <View
             style={{
@@ -123,31 +225,85 @@ export default function AccountScreen() {
       </View>
 
       {/* Balance Summary */}
-      <View style={styles.balanceSection}>
-        <Text style={styles.sectionTitle}>Your Balance Summary</Text>
-
-        <View style={styles.balanceCard}>
-          <View style={styles.balanceItem}>
-            <Text style={styles.balanceLabel}>Total you are owed</Text>
-            <Text style={[styles.balanceValue, { color: "#4CAF50" }]}>
+      <View
+        style={{ backgroundColor: colors.card, marginBottom: 16, padding: 16 }}
+      >
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: "bold",
+            color: colors.textPrimary,
+            marginBottom: 16,
+          }}
+        >
+          Your Balance Summary
+        </Text>
+        <View
+          style={{
+            backgroundColor: colors.backgroundDark,
+            borderRadius: 8,
+            padding: 16,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <Text style={{ fontSize: 14, color: colors.textSecondary }}>
+              Total you are owed
+            </Text>
+            <Text
+              style={{ fontSize: 16, fontWeight: "500", color: colors.success }}
+            >
               ₹{totalOwed.toFixed(2)}
             </Text>
           </View>
-
-          <View style={styles.balanceItem}>
-            <Text style={styles.balanceLabel}>Total you owe</Text>
-            <Text style={[styles.balanceValue, { color: "#F44336" }]}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <Text style={{ fontSize: 14, color: colors.textSecondary }}>
+              Total you owe
+            </Text>
+            <Text
+              style={{ fontSize: 16, fontWeight: "500", color: colors.error }}
+            >
               ₹{totalOwing.toFixed(2)}
             </Text>
           </View>
-
-          <View style={[styles.balanceItem, styles.netBalanceItem]}>
-            <Text style={styles.netBalanceLabel}>Net balance</Text>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+              paddingTop: 12,
+            }}
+          >
             <Text
-              style={[
-                styles.netBalanceValue,
-                { color: netBalance >= 0 ? "#4CAF50" : "#F44336" },
-              ]}
+              style={{
+                fontSize: 16,
+                fontWeight: "500",
+                color: colors.textPrimary,
+              }}
+            >
+              Net balance
+            </Text>
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "bold",
+                color: netBalance >= 0 ? colors.success : colors.error,
+              }}
             >
               {netBalance >= 0 ? "+" : "-"}₹{Math.abs(netBalance).toFixed(2)}
             </Text>
@@ -156,95 +312,412 @@ export default function AccountScreen() {
       </View>
 
       {/* Statistics */}
-      <View style={styles.statsSection}>
-        <Text style={styles.sectionTitle}>Statistics</Text>
-
-        <View style={styles.statsGrid}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{state.expenses.length}</Text>
-            <Text style={styles.statLabel}>Total Expenses</Text>
-          </View>
-
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{state.groups.length}</Text>
-            <Text style={styles.statLabel}>Groups</Text>
-          </View>
-
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{state.friends.length}</Text>
-            <Text style={styles.statLabel}>Friends</Text>
-          </View>
-
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              ₹
-              {state.expenses
-                .reduce(
-                  (sum, expense) =>
-                    expense.paidBy.id === state.currentUser?.id
-                      ? sum + expense.amount
-                      : sum,
-                  0
-                )
-                .toFixed(0)}
-            </Text>
-            <Text style={styles.statLabel}>Total Paid</Text>
-          </View>
+      <View
+        style={{ backgroundColor: colors.card, marginBottom: 16, padding: 16 }}
+      >
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: "bold",
+            color: colors.textPrimary,
+            marginBottom: 16,
+          }}
+        >
+          Statistics
+        </Text>
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            justifyContent: "space-between",
+          }}
+        >
+          {[
+            { value: state.expenses.length, label: "Total Expenses" },
+            { value: state.groups.length, label: "Groups" },
+            { value: state.friends.length, label: "Friends" },
+            {
+              value: `₹${state.expenses.reduce((sum, e) => (e.paidBy.id === state.currentUser?.id ? sum + e.amount : sum), 0).toFixed(0)}`,
+              label: "Total Paid",
+            },
+          ].map((stat, i) => (
+            <View
+              key={i}
+              style={{
+                width: "48%",
+                backgroundColor: colors.backgroundDark,
+                borderRadius: 8,
+                padding: 16,
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 24,
+                  fontWeight: "bold",
+                  color: colors.primary,
+                  marginBottom: 4,
+                }}
+              >
+                {stat.value}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: colors.textSecondary,
+                  textAlign: "center",
+                }}
+              >
+                {stat.label}
+              </Text>
+            </View>
+          ))}
         </View>
       </View>
 
       {/* Menu Options */}
-      <View style={styles.menuSection}>
-        {state.isOfflineMode && (
-          <TouchableOpacity style={styles.menuItem} onPress={handleSyncData}>
-            <View style={styles.menuIcon}>
-              <Ionicons name="sync-outline" size={20} color="#5bc5a7" />
+      <View style={{ backgroundColor: colors.card, marginBottom: 16 }}>
+        {/* Dark Mode Toggle */}
+        <View
+          style={{
+            padding: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.borderLight,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: colors.primaryLight,
+                justifyContent: "center",
+                alignItems: "center",
+                marginRight: 16,
+              }}
+            >
+              <Ionicons
+                name={isDark ? "moon" : "sunny"}
+                size={20}
+                color={colors.primary}
+              />
             </View>
-            <Text style={styles.menuText}>Sync Data</Text>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            <Text style={{ flex: 1, fontSize: 16, color: colors.textPrimary }}>
+              Theme
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", gap: 8, paddingLeft: 48 }}>
+            {(["light", "dark", "system"] as ThemeMode[]).map((mode) => (
+              <TouchableOpacity
+                key={mode}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  backgroundColor:
+                    themeMode === mode ? colors.primary : colors.backgroundDark,
+                  borderWidth: 1,
+                  borderColor:
+                    themeMode === mode ? colors.primary : colors.border,
+                }}
+                onPress={() => setThemeMode(mode)}
+              >
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: themeMode === mode ? "#fff" : colors.textPrimary,
+                    fontWeight: themeMode === mode ? "600" : "400",
+                  }}
+                >
+                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {state.isOfflineMode && (
+          <TouchableOpacity
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              padding: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.borderLight,
+            }}
+            onPress={handleSyncData}
+          >
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: colors.primaryLight,
+                justifyContent: "center",
+                alignItems: "center",
+                marginRight: 16,
+              }}
+            >
+              <Ionicons name="sync-outline" size={20} color={colors.primary} />
+            </View>
+            <Text style={{ flex: 1, fontSize: 16, color: colors.textPrimary }}>
+              Sync Data
+            </Text>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={colors.textTertiary}
+            />
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.menuItem} onPress={handleExportData}>
-          <View style={styles.menuIcon}>
-            <Ionicons name="download-outline" size={20} color="#5bc5a7" />
+        {pendingSyncCount > 0 && (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              padding: 16,
+              backgroundColor: "#fff3cd",
+              borderRadius: 8,
+              marginHorizontal: 8,
+              marginVertical: 4,
+            }}
+          >
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: "#ffeeba",
+                justifyContent: "center",
+                alignItems: "center",
+                marginRight: 16,
+              }}
+            >
+              <Ionicons name="time-outline" size={20} color="#856404" />
+            </View>
+            <Text style={{ color: "#856404", flex: 1, fontSize: 16 }}>
+              {pendingSyncCount} pending sync{" "}
+              {pendingSyncCount === 1 ? "item" : "items"}
+            </Text>
           </View>
-          <Text style={styles.menuText}>Export Data</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
+        )}
+
+        <TouchableOpacity
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            padding: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.borderLight,
+          }}
+          onPress={handleExportData}
+        >
+          <View
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: colors.primaryLight,
+              justifyContent: "center",
+              alignItems: "center",
+              marginRight: 16,
+            }}
+          >
+            <Ionicons
+              name="download-outline"
+              size={20}
+              color={colors.primary}
+            />
+          </View>
+          <Text style={{ flex: 1, fontSize: 16, color: colors.textPrimary }}>
+            Export Data
+          </Text>
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={colors.textTertiary}
+          />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem} onPress={handleSettings}>
-          <View style={styles.menuIcon}>
-            <Ionicons name="settings-outline" size={20} color="#5bc5a7" />
+        <TouchableOpacity
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            padding: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.borderLight,
+          }}
+          onPress={handleSettings}
+        >
+          <View
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: colors.primaryLight,
+              justifyContent: "center",
+              alignItems: "center",
+              marginRight: 16,
+            }}
+          >
+            <Ionicons
+              name="settings-outline"
+              size={20}
+              color={colors.primary}
+            />
           </View>
-          <Text style={styles.menuText}>Settings</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
+          <Text style={{ flex: 1, fontSize: 16, color: colors.textPrimary }}>
+            Settings
+          </Text>
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={colors.textTertiary}
+          />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem} onPress={handleSupport}>
-          <View style={styles.menuIcon}>
-            <Ionicons name="help-circle-outline" size={20} color="#5bc5a7" />
+        {biometricAvailable && (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              padding: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.borderLight,
+            }}
+          >
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: colors.primaryLight,
+                justifyContent: "center",
+                alignItems: "center",
+                marginRight: 16,
+              }}
+            >
+              <Ionicons
+                name="finger-print-outline"
+                size={20}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={{ flex: 1, fontSize: 16, color: colors.textPrimary }}>
+              Unlock with {biometricLabel}
+            </Text>
+            <Switch
+              value={biometricEnabled}
+              onValueChange={handleToggleBiometric}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={biometricEnabled ? "#fff" : "#f4f3f4"}
+            />
           </View>
-          <Text style={styles.menuText}>Support</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
+        )}
+
+        <TouchableOpacity
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            padding: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.borderLight,
+          }}
+          onPress={handleSupport}
+        >
+          <View
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: colors.primaryLight,
+              justifyContent: "center",
+              alignItems: "center",
+              marginRight: 16,
+            }}
+          >
+            <Ionicons
+              name="help-circle-outline"
+              size={20}
+              color={colors.primary}
+            />
+          </View>
+          <Text style={{ flex: 1, fontSize: 16, color: colors.textPrimary }}>
+            Support
+          </Text>
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={colors.textTertiary}
+          />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
-          <View style={[styles.menuIcon, { backgroundColor: "#ffebee" }]}>
-            <Ionicons name="log-out-outline" size={20} color="#F44336" />
+        <TouchableOpacity
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            padding: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.borderLight,
+          }}
+          onPress={handleLogout}
+        >
+          <View
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: "#ffebee",
+              justifyContent: "center",
+              alignItems: "center",
+              marginRight: 16,
+            }}
+          >
+            <Ionicons name="log-out-outline" size={20} color={colors.error} />
           </View>
-          <Text style={[styles.menuText, { color: "#F44336" }]}>Logout</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
+          <Text style={{ flex: 1, fontSize: 16, color: colors.error }}>
+            Logout
+          </Text>
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={colors.textTertiary}
+          />
         </TouchableOpacity>
       </View>
 
       {/* App Info */}
-      <View style={styles.appInfo}>
-        <Text style={styles.appVersion}>Splitwise Clone v1.0.0</Text>
-        <Text style={styles.appDescription}>
+      <View style={{ alignItems: "center", padding: 32 }}>
+        <Text
+          style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 4 }}
+        >
+          Splitwise Clone v1.0.0
+        </Text>
+        <Text
+          style={{
+            fontSize: 12,
+            color: colors.textTertiary,
+            textAlign: "center",
+          }}
+        >
           Split expenses with friends and family
         </Text>
-        <Text style={styles.appDescription}>
+        <Text
+          style={{
+            fontSize: 12,
+            color: colors.textTertiary,
+            textAlign: "center",
+          }}
+        >
           {state.isOfflineMode
             ? "Running in offline mode"
             : "Connected to cloud"}
