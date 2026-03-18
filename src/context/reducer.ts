@@ -23,26 +23,70 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, groups: [...state.groups, action.payload] };
     case "SET_EXPENSES":
       return { ...state, expenses: action.payload };
-    case "ADD_EXPENSE":
-      return { ...state, expenses: [...state.expenses, action.payload] };
+    case "ADD_EXPENSE": {
+      const newPending = new Set(state.pendingExpenseIds);
+      newPending.add(action.payload.id);
+      return {
+        ...state,
+        expenses: [...state.expenses, action.payload],
+        pendingExpenseIds: newPending,
+      };
+    }
     case "SET_FRIENDS":
       return { ...state, friends: action.payload };
     case "ADD_FRIEND":
       return { ...state, friends: [...state.friends, action.payload] };
     case "UPDATE_BALANCES":
       return { ...state, balances: action.payload };
-    case "DELETE_EXPENSE":
+    case "DELETE_EXPENSE": {
+      const pendingAfterDelete = new Set(state.pendingExpenseIds);
+      pendingAfterDelete.delete(action.payload);
       return {
         ...state,
         expenses: state.expenses.filter(
-          (expense) => expense.id !== action.payload
+          (expense) => expense.id !== action.payload,
         ),
+        pendingExpenseIds: pendingAfterDelete,
+      };
+    }
+    case "UPDATE_EXPENSE":
+      return {
+        ...state,
+        expenses: state.expenses.map((expense) =>
+          expense.id === action.payload.id ? action.payload : expense,
+        ),
+      };
+    case "REPLACE_EXPENSE": {
+      const pendingAfterReplace = new Set(state.pendingExpenseIds);
+      pendingAfterReplace.delete(action.payload.tempId);
+      return {
+        ...state,
+        expenses: state.expenses.map((expense) =>
+          expense.id === action.payload.tempId
+            ? action.payload.expense
+            : expense,
+        ),
+        pendingExpenseIds: pendingAfterReplace,
+      };
+    }
+    case "MARK_EXPENSE_CONFIRMED": {
+      const pendingAfterConfirm = new Set(state.pendingExpenseIds);
+      pendingAfterConfirm.delete(action.payload);
+      return {
+        ...state,
+        pendingExpenseIds: pendingAfterConfirm,
+      };
+    }
+    case "ADD_SETTLEMENT":
+      return {
+        ...state,
+        settlements: [...(state.settlements ?? []), action.payload],
       };
     case "UPDATE_GROUP":
       return {
         ...state,
         groups: state.groups.map((group) =>
-          group.id === action.payload.id ? action.payload : group
+          group.id === action.payload.id ? action.payload : group,
         ),
       };
     case "SET_OFFLINE_MODE":
