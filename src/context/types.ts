@@ -1,4 +1,4 @@
-import { User, Group, Expense, Balance } from "../types";
+import { User, Group, Expense, Balance, Settlement } from "../types";
 
 // Network error interface for better error handling
 export interface NetworkError {
@@ -15,6 +15,8 @@ export interface AppState {
   expenses: Expense[];
   friends: User[];
   balances: Balance[];
+  settlements: Settlement[];
+  pendingExpenseIds: Set<string>;
   loading: boolean;
   error: string | null;
   networkError: NetworkError | null;
@@ -40,6 +42,10 @@ export type AppAction =
   | { type: "ADD_FRIEND"; payload: User }
   | { type: "UPDATE_BALANCES"; payload: Balance[] }
   | { type: "DELETE_EXPENSE"; payload: string }
+  | { type: "UPDATE_EXPENSE"; payload: Expense }
+  | { type: "REPLACE_EXPENSE"; payload: { tempId: string; expense: Expense } }
+  | { type: "MARK_EXPENSE_CONFIRMED"; payload: string }
+  | { type: "ADD_SETTLEMENT"; payload: Settlement }
   | { type: "UPDATE_GROUP"; payload: Group }
   | { type: "SET_OFFLINE_MODE"; payload: boolean }
   | { type: "SET_AUTHENTICATED"; payload: boolean }
@@ -66,13 +72,24 @@ export interface AppContextType {
   // Expense actions
   loadUserExpenses: () => Promise<void>;
   createExpense: (expenseData: Omit<Expense, "id">) => Promise<void>;
+  updateExpense: (
+    expenseId: string,
+    expenseData: Partial<Omit<Expense, "id">>,
+  ) => Promise<void>;
   deleteExpense: (expenseId: string) => Promise<void>;
+  // Settlement actions
+  settleUp: (
+    toUserId: string,
+    amount: number,
+    note?: string,
+    paymentMethod?: string,
+  ) => Promise<void>;
   getExpensesByCategory: (category: string) => Promise<Expense[]>;
   getExpensesByTags: (tags: string[]) => Promise<Expense[]>;
   getExpensesByLocation: (
     latitude: number,
     longitude: number,
-    radiusKm?: number
+    radiusKm?: number,
   ) => Promise<Expense[]>;
   // Friend actions
   loadFriends: () => Promise<void>;
@@ -88,6 +105,8 @@ export const initialState: AppState = {
   expenses: [],
   friends: [],
   balances: [],
+  settlements: [],
+  pendingExpenseIds: new Set<string>(),
   loading: false,
   error: null,
   networkError: null,
