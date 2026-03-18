@@ -16,7 +16,7 @@ export default function DashboardScreen() {
   // Use centralized balance calculation from AppContext
   const getUserBalance = () => {
     const userBalance = state.balances.find(
-      (balance) => balance.userId === state.currentUser?.id
+      (balance) => balance.userId === state.currentUser?.id,
     );
 
     if (userBalance) {
@@ -29,15 +29,15 @@ export default function DashboardScreen() {
 
     state.expenses.forEach((expense) => {
       const userSplit = expense.splits.find(
-        (split) => split.userId === state.currentUser?.id
+        (split) => split.userId === state.currentUser?.id,
       );
       if (userSplit) {
         if (expense.paidBy.id === state.currentUser?.id) {
           // User paid, others owe them
-          totalOwed += expense.amount - userSplit.amount;
+          totalOwed += expense.amount - userSplit.amount!;
         } else {
           // User owes someone else
-          totalOwing += userSplit.amount;
+          totalOwing += userSplit.amount!;
         }
       }
     });
@@ -56,9 +56,29 @@ export default function DashboardScreen() {
   };
 
   const handleSettleUp = () => {
+    if (state.friends.length === 0) {
+      Alert.alert("No Friends", "Add friends first before settling up.");
+      return;
+    }
+    // Navigate to Friends tab where users can pick a friend to settle with
+    navigation.navigate("Main" as any);
+    // If there's only one friend with a balance, go directly
+    const userBalance = state.balances.find(
+      (b) => b.userId === state.currentUser?.id,
+    );
+    if (userBalance) {
+      const friendIds = [
+        ...Object.keys(userBalance.owes),
+        ...Object.keys(userBalance.owedBy),
+      ];
+      if (friendIds.length === 1) {
+        navigation.navigate("SettleUp", { userId: friendIds[0] });
+        return;
+      }
+    }
     Alert.alert(
       "Settle Up",
-      "This feature would allow you to settle debts with friends."
+      "Go to the Friends tab and tap a friend to settle up with them.",
     );
   };
 
@@ -108,7 +128,13 @@ export default function DashboardScreen() {
           </View>
         ) : (
           recentExpenses.map((expense) => (
-            <View key={expense.id} style={styles.expenseItem}>
+            <TouchableOpacity
+              key={expense.id}
+              style={styles.expenseItem}
+              onPress={() =>
+                navigation.navigate("ExpenseDetails", { expenseId: expense.id })
+              }
+            >
               <View style={styles.expenseIcon}>
                 <Ionicons name="receipt" size={20} color="#5bc5a7" />
               </View>
@@ -144,7 +170,7 @@ export default function DashboardScreen() {
                     : `${expense.paidBy.name} paid`}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </View>
@@ -153,7 +179,13 @@ export default function DashboardScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Your Groups</Text>
         {state.groups.map((group) => (
-          <TouchableOpacity key={group.id} style={styles.groupItem}>
+          <TouchableOpacity
+            key={group.id}
+            style={styles.groupItem}
+            onPress={() =>
+              navigation.navigate("GroupDetails", { groupId: group.id })
+            }
+          >
             <View style={styles.groupIcon}>
               <Ionicons name="people" size={20} color="#5bc5a7" />
             </View>
