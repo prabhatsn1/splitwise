@@ -1,0 +1,226 @@
+import { StyleSheet } from "react-native";
+
+export const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  heroCard: {
+    backgroundColor: "#5bc5a7",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  groupIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  groupName: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 4,
+  },
+  groupDescription: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.85)",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  heroStats: {
+    flexDirection: "row",
+    gap: 24,
+  },
+  heroStat: {
+    alignItems: "center",
+  },
+  heroStatValue: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  heroStatLabel: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.75)",
+  },
+  section: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    color: "#888",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  memberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f5f5f5",
+  },
+  memberAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f0faf9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  memberAvatarText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#5bc5a7",
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+  },
+  memberEmail: {
+    fontSize: 12,
+    color: "#999",
+  },
+  memberBalance: {
+    alignItems: "flex-end",
+  },
+  memberBalanceAmount: {
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+  memberBalanceLabel: {
+    fontSize: 11,
+    color: "#888",
+  },
+  settledBadge: {
+    fontSize: 12,
+    color: "#888",
+    fontStyle: "italic",
+  },
+  expenseRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f5f5f5",
+  },
+  expenseIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#f0faf9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  expenseInfo: {
+    flex: 1,
+  },
+  expenseDescription: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#333",
+    marginBottom: 2,
+  },
+  expenseMeta: {
+    fontSize: 12,
+    color: "#999",
+  },
+  expenseAmountCol: {
+    alignItems: "flex-end",
+  },
+  expenseAmount: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 2,
+  },
+  expensePaidBy: {
+    fontSize: 11,
+    color: "#888",
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 24,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#bbb",
+    marginTop: 8,
+  },
+  addExpenseButton: {
+    backgroundColor: "#5bc5a7",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  addExpenseButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  balanceSummaryCard: {
+    borderRadius: 12,
+    padding: 14,
+    backgroundColor: "#f0faf9",
+    marginBottom: 10,
+  },
+  balanceSummaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  balanceSummaryLabel: {
+    fontSize: 14,
+    color: "#555",
+  },
+  balanceSummaryAmount: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  analyticsButton: {
+    flexDirection: "row",
+    backgroundColor: "#2196F3",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  analyticsButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+});

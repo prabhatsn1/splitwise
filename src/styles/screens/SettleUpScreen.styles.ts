@@ -1,0 +1,148 @@
+import { StyleSheet } from "react-native";
+
+export const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  headerCard: {
+    backgroundColor: "#5bc5a7",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  avatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  avatarText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  settlingWithLabel: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.8)",
+    marginBottom: 4,
+  },
+  friendName: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 8,
+  },
+  currentBalance: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.9)",
+  },
+  section: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  sectionLabel: {
+    fontSize: 13,
+    color: "#888",
+    marginBottom: 10,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  amountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  currencySymbol: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#333",
+    marginRight: 6,
+  },
+  amountInput: {
+    flex: 1,
+    fontSize: 36,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  noteInput: {
+    fontSize: 16,
+    color: "#333",
+    minHeight: 44,
+  },
+  methodsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  methodChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: "#e0e0e0",
+    backgroundColor: "#fafafa",
+    gap: 6,
+  },
+  methodChipSelected: {
+    borderColor: "#5bc5a7",
+    backgroundColor: "#f0faf9",
+  },
+  methodChipText: {
+    fontSize: 14,
+    color: "#555",
+    fontWeight: "500",
+  },
+  methodChipTextSelected: {
+    color: "#5bc5a7",
+    fontWeight: "700",
+  },
+  confirmButton: {
+    backgroundColor: "#5bc5a7",
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginBottom: 12,
+    shadowColor: "#5bc5a7",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  confirmButtonDisabled: {
+    backgroundColor: "#b2e0d7",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  confirmButtonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  cancelButton: {
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    color: "#888",
+    fontSize: 16,
+  },
+});
