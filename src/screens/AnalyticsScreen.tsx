@@ -2,16 +2,18 @@ import React, { useState, useEffect } from "react";
 import { ScrollView, View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
-import { ExpenseAnalytics } from "../types";
+import { ExpenseAnalytics, YearOverYearData } from "../types";
 import { AnalyticsService } from "../services/analyticsService";
 import { MonthlySpendingChart } from "../components/MonthlySpendingChart";
 import { CategoryPieChart } from "../components/CategoryPieChart";
 import { SpendingTrendsCard } from "../components/SpendingTrendsCard";
+import { YearOverYearChart } from "../components/YearOverYearChart";
 import { styles } from "../styles/screens/AnalyticsScreen.styles";
 
 export default function AnalyticsScreen() {
   const { state } = useApp();
   const [analytics, setAnalytics] = useState<ExpenseAnalytics | undefined>();
+  const [yoyData, setYoyData] = useState<YearOverYearData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,9 +30,15 @@ export default function AnalyticsScreen() {
       const analyticsData = AnalyticsService.calculateAnalytics(
         state.expenses,
         state.friends,
-        state.currentUser.id
+        state.currentUser.id,
       );
       setAnalytics(analyticsData);
+
+      const yearOverYear = AnalyticsService.calculateYearOverYear(
+        state.expenses,
+        state.currentUser.id,
+      );
+      setYoyData(yearOverYear);
     } catch (error) {
       console.error("Failed to calculate analytics:", error);
     } finally {
@@ -81,6 +89,7 @@ export default function AnalyticsScreen() {
 
       {/* Charts */}
       <MonthlySpendingChart data={analytics.monthlySpending} />
+      <YearOverYearChart data={yoyData} />
       <CategoryPieChart data={analytics.categoryBreakdown} />
       <SpendingTrendsCard trends={analytics.spendingTrends} />
 
@@ -127,7 +136,7 @@ export default function AnalyticsScreen() {
                 </Text>
                 <Text style={styles.expenseDate}>
                   {new Date(
-                    analytics.mostExpensiveExpense.date
+                    analytics.mostExpensiveExpense.date,
                   ).toLocaleDateString()}
                 </Text>
               </View>
