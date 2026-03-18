@@ -39,6 +39,7 @@ export interface Expense {
   id: string;
   description: string;
   amount: number;
+  currency?: string; // Currency code (e.g., "INR", "USD"). Defaults to "INR"
   paidBy: User;
   splitBetween: User[];
   splitType: SplitType;
@@ -97,12 +98,42 @@ export interface ExpenseAnalytics {
   spendingTrends: "increasing" | "decreasing" | "stable";
 }
 
+// Year-over-year comparison data
+export interface YearOverYearData {
+  month: string; // "Jan", "Feb", etc.
+  currentYear: number;
+  previousYear: number;
+}
+
+// Per-group analytics
+export interface GroupAnalytics {
+  categoryBreakdown: { category: string; amount: number; percentage: number }[];
+  memberSpending: {
+    member: User;
+    totalPaid: number;
+    totalShare: number;
+    netBalance: number;
+  }[];
+  monthlySpending: { month: string; amount: number }[];
+  totalSpend: number;
+  averageExpense: number;
+  expenseCount: number;
+}
+
+// Simplified debt (optimized payment)
+export interface SimplifiedDebt {
+  from: User;
+  to: User;
+  amount: number;
+}
+
 export type RootStackParamList = {
   Main: undefined;
   AddExpense: { groupId?: string };
   CreateGroup: undefined;
   ExpenseDetails: { expenseId: string };
   GroupDetails: { groupId: string };
+  GroupAnalytics: { groupId: string };
   SettleUp: { userId: string };
   Analytics: undefined;
 };
