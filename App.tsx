@@ -1,12 +1,18 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createStackNavigator } from "@react-navigation/stack";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: expo-notifications may not be installed yet
+import * as Notifications from "expo-notifications";
+import { NavigationContainerRef } from "@react-navigation/native";
+import { View, Text, TouchableOpacity, StyleSheet, AppState as RNAppState } from "react-native";
 
 // Import context
 import { AppProvider, useApp } from "./src/context/AppContext";
+import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 
 // Import components
 import LoadingScreen from "./src/components/LoadingScreen";
@@ -20,12 +26,22 @@ import FriendsScreen from "./src/screens/FriendsScreen";
 import AccountScreen from "./src/screens/AccountScreen";
 import AddExpenseScreen from "./src/screens/AddExpenseScreen";
 import CreateGroupScreen from "./src/screens/CreateGroupScreen";
+import SettleUpScreen from "./src/screens/SettleUpScreen";
+import ExpenseDetailsScreen from "./src/screens/ExpenseDetailsScreen";
+import GroupDetailsScreen from "./src/screens/GroupDetailsScreen";
+import GroupAnalyticsScreen from "./src/screens/GroupAnalyticsScreen";
+
+// Import services
+import NotificationService from "./src/services/notificationService";
+import BiometricService from "./src/services/biometricService";
+import { RootStackParamList } from "./src/types";
 
 const Tab = createBottomTabNavigator();
-const Stack = createStackNavigator();
+const Stack = createStackNavigator<RootStackParamList>();
 
 function TabNavigator() {
   const { state } = useApp();
+  const { colors, isDark } = useTheme();
 
   return (
     <Tab.Navigator
@@ -49,12 +65,16 @@ function TabNavigator() {
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: "#5bc5a7",
-        tabBarInactiveTintColor: "gray",
-        headerStyle: {
-          backgroundColor: "#5bc5a7",
+        tabBarActiveTintColor: colors.tabBarActive,
+        tabBarInactiveTintColor: colors.tabBarInactive,
+        tabBarStyle: {
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
         },
-        headerTintColor: "#fff",
+        headerStyle: {
+          backgroundColor: colors.headerBackground,
+        },
+        headerTintColor: colors.headerText,
         headerTitleStyle: {
           fontWeight: "bold",
         },
@@ -62,7 +82,7 @@ function TabNavigator() {
           <Ionicons
             name={state.isOfflineMode ? "cloud-offline" : "cloud-done"}
             size={20}
-            color="#fff"
+            color={colors.headerText}
             style={{ marginRight: 16 }}
           />
         ),
@@ -79,6 +99,62 @@ function TabNavigator() {
 
 function AppContent() {
   const { state } = useApp();
+  const { colors, isDark } = useTheme();
+  const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
+  const notificationResponseListener = useRef<Notifications.EventSubscription>();
+
+  // Biometric lock state
+  const [biometricLocked, setBiometricLocked] = useState(false);
+  const [biometricChecked, setBiometricChecked] = useState(false);
+
+  // Check biometric on mount and when returning from background
+  useEffect(() => {
+    const checkBiometric = async () => {
+      const bio = BiometricService.getInstance();
+      const enabled = await bio.isBiometricEnabled();
+      if (enabled && !state.needsLogin) {
+        setBiometricLocked(true);
+        const success = await bio.authenticate();
+        setBiometricLocked(!success);
+      }
+      setBiometricChecked(true);
+    };
+
+    checkBiometric();
+
+    // Re-lock when app comes back from background
+    const subscription = RNAppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        checkBiometric();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [state.needsLogin]);
+
+  // Initialize push notifications
+  useEffect(() => {
+    NotificationService.getInstance().registerForPushNotifications();
+
+    // Handle tap on notification — deep link into the app
+    notificationResponseListener.current =
+      NotificationService.getInstance().addNotificationResponseReceivedListener(
+        (response) => {
+          const data = response.notification.request.content.data as Record<string, string>;
+          if (!navigationRef.current) return;
+
+          if (data.type === "new_expense" && data.expenseId) {
+            navigationRef.current.navigate("ExpenseDetails", {
+              expenseId: data.expenseId,
+            });
+          }
+        }
+      );
+
+    return () => {
+      notificationResponseListener.current?.remove();
+    };
+  }, []);
 
   // Show loading screen while initializing
   if (state.loading) {
@@ -97,11 +173,39 @@ function AppContent() {
     return <LoginScreen />;
   }
 
+  // Show biometric lock screen
+  if (biometricLocked || !biometricChecked) {
+    return (
+      <View style={[lockStyles.container, { backgroundColor: colors.background }]}>
+        <Ionicons name="lock-closed" size={64} color={colors.primary} />
+        <Text style={[lockStyles.title, { color: colors.textPrimary }]}>Splitwise is Locked</Text>
+        <Text style={[lockStyles.subtitle, { color: colors.textSecondary }]}>Authenticate to continue</Text>
+        <TouchableOpacity
+          style={[lockStyles.button, { backgroundColor: colors.primary }]}
+          onPress={async () => {
+            const bio = BiometricService.getInstance();
+            const success = await bio.authenticate();
+            if (success) setBiometricLocked(false);
+          }}
+        >
+          <Ionicons name="finger-print" size={24} color="#fff" />
+          <Text style={lockStyles.buttonText}>Unlock</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   // Show main app navigation
   return (
-    <NavigationContainer>
-      <StatusBar style="light" />
-      <Stack.Navigator>
+    <NavigationContainer ref={navigationRef}>
+      <StatusBar style={isDark ? "light" : "light"} />
+      <Stack.Navigator
+          screenOptions={{
+            headerStyle: { backgroundColor: colors.headerBackground },
+            headerTintColor: colors.headerText,
+            headerTitleStyle: { fontWeight: "bold" },
+          }}
+        >
         <Stack.Screen
           name="Main"
           component={TabNavigator}
@@ -110,40 +214,80 @@ function AppContent() {
         <Stack.Screen
           name="AddExpense"
           component={AddExpenseScreen}
-          options={{
-            title: "Add Expense",
-            headerStyle: {
-              backgroundColor: "#5bc5a7",
-            },
-            headerTintColor: "#fff",
-            headerTitleStyle: {
-              fontWeight: "bold",
-            },
-          }}
+          options={{ title: "Add Expense" }}
         />
         <Stack.Screen
           name="CreateGroup"
           component={CreateGroupScreen}
-          options={{
-            title: "Create Group",
-            headerStyle: {
-              backgroundColor: "#5bc5a7",
-            },
-            headerTintColor: "#fff",
-            headerTitleStyle: {
-              fontWeight: "bold",
-            },
-          }}
+          options={{ title: "Create Group" }}
+        />
+        <Stack.Screen
+          name="SettleUp"
+          component={SettleUpScreen}
+          options={{ title: "Settle Up" }}
+        />
+        <Stack.Screen
+          name="ExpenseDetails"
+          component={ExpenseDetailsScreen}
+          options={{ title: "Expense Details" }}
+        />
+        <Stack.Screen
+          name="GroupDetails"
+          component={GroupDetailsScreen}
+          options={{ title: "Group Details" }}
+        />
+        <Stack.Screen
+          name="GroupAnalytics"
+          component={GroupAnalyticsScreen}
+          options={{ title: "Group Analytics" }}
         />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
 
+const lockStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+    padding: 32,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#333",
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 32,
+  },
+  button: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#5bc5a7",
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+});
+
 export default function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <ThemeProvider>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </ThemeProvider>
   );
 }
