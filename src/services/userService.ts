@@ -1,6 +1,5 @@
-import DatabaseService from "./database";
 import { User } from "../types";
-import { ObjectId } from "mongodb";
+import LocalStorageService from "./localStorageService";
 
 // Enhanced error types for better network failure handling
 export class NetworkError extends Error {
@@ -8,7 +7,7 @@ export class NetworkError extends Error {
     public type: "network" | "auth" | "validation" | "sync" | "general",
     message: string,
     public isRetryable: boolean = true,
-    public action?: "login" | "signup" | "sync" | "load_data"
+    public action?: "login" | "signup" | "sync" | "load_data",
   ) {
     super(message);
     this.name = "NetworkError";
@@ -16,14 +15,31 @@ export class NetworkError extends Error {
 }
 
 export class UserService {
-  private db = DatabaseService.getInstance();
+  private localStorage = LocalStorageService.getInstance();
   private maxRetries = 3;
   private retryDelay = 1000; // 1 second
+
+  private generateUserId(): string {
+    return `user_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  }
+
+  private getAllKnownUsers(data: {
+    currentUser: User | null;
+    friends: User[];
+  }): User[] {
+    const users = [data.currentUser, ...data.friends].filter(Boolean) as User[];
+    const seen = new Set<string>();
+    return users.filter((user) => {
+      if (seen.has(user.id)) return false;
+      seen.add(user.id);
+      return true;
+    });
+  }
 
   private async withRetry<T>(
     operation: () => Promise<T>,
     action?: "login" | "signup" | "sync" | "load_data",
-    retries = this.maxRetries
+    retries = this.maxRetries,
   ): Promise<T> {
     try {
       return await operation();
@@ -55,7 +71,7 @@ export class UserService {
 
   private enhanceError(
     error: any,
-    action?: "login" | "signup" | "sync" | "load_data"
+    action?: "login" | "signup" | "sync" | "load_data",
   ): NetworkError {
     // Network connectivity errors
     if (error.code === "ENOTFOUND" || error.code === "ECONNREFUSED") {
@@ -63,7 +79,7 @@ export class UserService {
         "network",
         "Unable to connect to server. Please check your internet connection.",
         true,
-        action
+        action,
       );
     }
 
@@ -73,7 +89,7 @@ export class UserService {
         "network",
         "Connection timed out. Please try again.",
         true,
-        action
+        action,
       );
     }
 
@@ -86,7 +102,7 @@ export class UserService {
         "network",
         "Database connection failed. Please check your connection and try again.",
         true,
-        action
+        action,
       );
     }
 
@@ -96,7 +112,7 @@ export class UserService {
         "auth",
         "User not found. Please check your email or sign up for a new account.",
         false,
-        action
+        action,
       );
     }
 
@@ -106,7 +122,7 @@ export class UserService {
         "validation",
         "An account with this email already exists. Please try logging in instead.",
         false,
-        action
+        action,
       );
     }
 
@@ -115,97 +131,90 @@ export class UserService {
       "general",
       error.message || "An unexpected error occurred. Please try again.",
       this.isRetryableError(error),
-      action
+      action,
     );
   }
 
   async createUser(userData: Omit<User, "id">): Promise<User> {
     return this.withRetry(async () => {
-      await this.db.connect();
-      const collection = this.db.getUsersCollection();
+      const data = await this.localStorage.getLocalData();
+      const users = this.getAllKnownUsers(data);
+      const existingUser = users.find(
+        (user) => user.email.toLowerCase() === userData.email.toLowerCase(),
+      );
 
-      // Check if user already exists
-      const existingUser = await collection.findOne({ email: userData.email });
       if (existingUser) {
         throw new Error("User with this email already exists");
       }
 
-      const result = await collection.insertOne({
+      const user: User = {
         ...userData,
-        _id: new ObjectId(),
-      } as any);
+        id: this.generateUserId(),
+      };
 
-      const user = await collection.findOne({ _id: result.insertedId });
-      if (!user) {
-        throw new Error("Failed to create user");
-      }
+      await this.localStorage.addFriend(user);
 
-      return this.transformUser(user);
+      return user;
     }, "signup");
   }
 
   async getUserById(id: string): Promise<User | null> {
     return this.withRetry(async () => {
-      await this.db.connect();
-      const collection = this.db.getUsersCollection();
-
-      const user = await collection.findOne({ _id: new ObjectId(id) });
-      return user ? this.transformUser(user) : null;
+      const data = await this.localStorage.getLocalData();
+      const users = this.getAllKnownUsers(data);
+      return users.find((user) => user.id === id) || null;
     }, "load_data");
   }
 
   async getUserByEmail(email: string): Promise<User | null> {
     return this.withRetry(async () => {
-      await this.db.connect();
-      const collection = this.db.getUsersCollection();
-
-      const user = await collection.findOne({ email });
-      return user ? this.transformUser(user) : null;
+      const data = await this.localStorage.getLocalData();
+      const users = this.getAllKnownUsers(data);
+      return (
+        users.find(
+          (user) => user.email.toLowerCase() === email.toLowerCase(),
+        ) || null
+      );
     }, "login");
   }
 
   async updateUser(id: string, userData: Partial<User>): Promise<User | null> {
     return this.withRetry(async () => {
-      await this.db.connect();
-      const collection = this.db.getUsersCollection();
+      const data = await this.localStorage.getLocalData();
+      let updatedUser: User | null = null;
 
-      await collection.updateOne({ _id: new ObjectId(id) }, { $set: userData });
+      if (data.currentUser?.id === id) {
+        updatedUser = { ...data.currentUser, ...userData, id };
+        await this.localStorage.saveUser(updatedUser);
+      }
 
-      const user = await collection.findOne({ _id: new ObjectId(id) });
-      return user ? this.transformUser(user) : null;
+      const updatedFriends = data.friends.map((friend) => {
+        if (friend.id !== id) return friend;
+        updatedUser = { ...friend, ...userData, id };
+        return updatedUser;
+      });
+
+      await this.localStorage.saveFriends(updatedFriends);
+
+      return updatedUser;
     }, "sync");
   }
 
   async getAllUsers(): Promise<User[]> {
     return this.withRetry(async () => {
-      await this.db.connect();
-      const collection = this.db.getUsersCollection();
-
-      const users = await collection.find({}).toArray();
-      return users.map((user) => this.transformUser(user));
+      const data = await this.localStorage.getLocalData();
+      return this.getAllKnownUsers(data);
     }, "load_data");
   }
 
   // Health check method to test connectivity
   async checkConnectivity(): Promise<boolean> {
     try {
-      await this.db.connect();
-      // Try a simple operation to verify connection
-      const collection = this.db.getUsersCollection();
-      await collection.countDocuments({}, { limit: 1 });
+      await this.localStorage.getLocalData();
       return true;
     } catch (error) {
       console.log("Connectivity check failed:", error);
       return false;
     }
-  }
-
-  private transformUser(user: any): User {
-    return {
-      id: user._id.toString(),
-      name: user.name,
-      email: user.email,
-      avatar: user.avatar,
-    };
   }
 }
