@@ -1,4 +1,3 @@
-import DatabaseService from "./database";
 import {
   Expense,
   Balance,
@@ -7,41 +6,50 @@ import {
   Location,
   RecurringConfig,
 } from "../types";
-import { ObjectId } from "mongodb";
+import LocalStorageService from "./localStorageService";
 
 export class ExpenseService {
-  private db = DatabaseService.getInstance();
+  private localStorage = LocalStorageService.getInstance();
+
+  private generateExpenseId(): string {
+    return `expense_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  }
+
+  private sortByDateDesc(expenses: Expense[]): Expense[] {
+    return [...expenses].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
+  }
 
   async createExpense(expenseData: Omit<Expense, "id">): Promise<Expense> {
-    await this.db.connect();
-    const collection = this.db.getExpensesCollection();
+    const data = await this.localStorage.getLocalData();
 
     // Calculate splits based on split type
     const calculatedSplits = this.calculateSplits(
       expenseData.amount,
       expenseData.splitType,
       expenseData.splits,
-      expenseData.splitBetween
+      expenseData.splitBetween,
     );
 
-    const result = await collection.insertOne({
+    const expense: Expense = {
       ...expenseData,
       splits: calculatedSplits,
-      _id: new ObjectId(),
-      date: new Date(),
+      id: this.generateExpenseId(),
+      date: expenseData.date ? new Date(expenseData.date) : new Date(),
       tags: expenseData.tags || [],
-    } as any);
+    };
 
-    const expense = await collection.findOne({ _id: result.insertedId });
-    return this.transformExpense(expense);
+    await this.localStorage.saveExpenses([...data.expenses, expense]);
+    return expense;
   }
 
   async createRecurringExpenses(
-    expenseData: Omit<Expense, "id">
+    expenseData: Omit<Expense, "id">,
   ): Promise<Expense[]> {
     if (!expenseData.recurring) {
       throw new Error(
-        "Recurring configuration is required for recurring expenses"
+        "Recurring configuration is required for recurring expenses",
       );
     }
 
@@ -78,87 +86,76 @@ export class ExpenseService {
   }
 
   async getExpenseById(id: string): Promise<Expense | null> {
-    await this.db.connect();
-    const collection = this.db.getExpensesCollection();
-
-    const expense = await collection.findOne({ _id: new ObjectId(id) });
-    return expense ? this.transformExpense(expense) : null;
+    const data = await this.localStorage.getLocalData();
+    return data.expenses.find((expense) => expense.id === id) || null;
   }
 
   async getExpensesByUserId(userId: string): Promise<Expense[]> {
-    await this.db.connect();
-    const collection = this.db.getExpensesCollection();
-
-    const expenses = await collection
-      .find({
-        $or: [{ "paidBy.id": userId }, { "splitBetween.id": userId }],
-      })
-      .sort({ date: -1 })
-      .toArray();
-
-    return expenses.map((expense) => this.transformExpense(expense));
+    const data = await this.localStorage.getLocalData();
+    const expenses = data.expenses.filter(
+      (expense) =>
+        expense.paidBy.id === userId ||
+        expense.splitBetween.some((participant) => participant.id === userId),
+    );
+    return this.sortByDateDesc(expenses);
   }
 
   async getExpensesByGroupId(groupId: string): Promise<Expense[]> {
-    await this.db.connect();
-    const collection = this.db.getExpensesCollection();
-
-    const expenses = await collection
-      .find({ groupId })
-      .sort({ date: -1 })
-      .toArray();
-    return expenses.map((expense) => this.transformExpense(expense));
+    const data = await this.localStorage.getLocalData();
+    const expenses = data.expenses.filter(
+      (expense) => expense.groupId === groupId,
+    );
+    return this.sortByDateDesc(expenses);
   }
 
   async getExpensesByCategory(
     category: string,
-    userId?: string
+    userId?: string,
   ): Promise<Expense[]> {
-    await this.db.connect();
-    const collection = this.db.getExpensesCollection();
+    const data = await this.localStorage.getLocalData();
+    const expenses = data.expenses.filter((expense) => {
+      if (expense.category !== category) return false;
+      if (!userId) return true;
+      return (
+        expense.paidBy.id === userId ||
+        expense.splitBetween.some((participant) => participant.id === userId)
+      );
+    });
 
-    const query: any = { category };
-    if (userId) {
-      query.$or = [{ "paidBy.id": userId }, { "splitBetween.id": userId }];
-    }
-
-    const expenses = await collection.find(query).sort({ date: -1 }).toArray();
-
-    return expenses.map((expense) => this.transformExpense(expense));
+    return this.sortByDateDesc(expenses);
   }
 
   async getExpensesByTags(tags: string[], userId?: string): Promise<Expense[]> {
-    await this.db.connect();
-    const collection = this.db.getExpensesCollection();
+    const tagSet = new Set(tags);
+    const data = await this.localStorage.getLocalData();
+    const expenses = data.expenses.filter((expense) => {
+      const hasTag = (expense.tags || []).some((tag) => tagSet.has(tag));
+      if (!hasTag) return false;
+      if (!userId) return true;
+      return (
+        expense.paidBy.id === userId ||
+        expense.splitBetween.some((participant) => participant.id === userId)
+      );
+    });
 
-    const query: any = { tags: { $in: tags } };
-    if (userId) {
-      query.$or = [{ "paidBy.id": userId }, { "splitBetween.id": userId }];
-    }
-
-    const expenses = await collection.find(query).sort({ date: -1 }).toArray();
-
-    return expenses.map((expense) => this.transformExpense(expense));
+    return this.sortByDateDesc(expenses);
   }
 
   async getExpensesByLocation(
     latitude: number,
     longitude: number,
     radiusKm: number = 1,
-    userId?: string
+    userId?: string,
   ): Promise<Expense[]> {
-    await this.db.connect();
-    const collection = this.db.getExpensesCollection();
-
-    // Simple proximity check (in a real app, you might use MongoDB's geospatial queries)
-    const expenses = await collection
-      .find({
-        location: { $exists: true },
-        ...(userId && {
-          $or: [{ "paidBy.id": userId }, { "splitBetween.id": userId }],
-        }),
-      })
-      .toArray();
+    const data = await this.localStorage.getLocalData();
+    const expenses = data.expenses.filter((expense) => {
+      if (!expense.location) return false;
+      if (!userId) return true;
+      return (
+        expense.paidBy.id === userId ||
+        expense.splitBetween.some((participant) => participant.id === userId)
+      );
+    });
 
     return expenses
       .filter((expense) => {
@@ -167,39 +164,59 @@ export class ExpenseService {
           latitude,
           longitude,
           expense.location.latitude,
-          expense.location.longitude
+          expense.location.longitude,
         );
         return distance <= radiusKm;
       })
-      .map((expense) => this.transformExpense(expense));
+      .map((expense) => expense);
   }
 
   async updateExpense(
     id: string,
-    expenseData: Partial<Expense>
+    expenseData: Partial<Expense>,
   ): Promise<Expense | null> {
-    await this.db.connect();
-    const collection = this.db.getExpensesCollection();
+    const data = await this.localStorage.getLocalData();
+    let updatedExpense: Expense | null = null;
 
-    await collection.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: expenseData }
-    );
+    const updatedExpenses = data.expenses.map((expense) => {
+      if (expense.id !== id) return expense;
 
-    const expense = await collection.findOne({ _id: new ObjectId(id) });
-    return expense ? this.transformExpense(expense) : null;
+      const merged = { ...expense, ...expenseData, id } as Expense;
+      if (
+        expenseData.amount !== undefined ||
+        expenseData.splitType !== undefined ||
+        expenseData.splits !== undefined ||
+        expenseData.splitBetween !== undefined
+      ) {
+        merged.splits = this.calculateSplits(
+          merged.amount,
+          merged.splitType,
+          merged.splits,
+          merged.splitBetween,
+        );
+      }
+
+      updatedExpense = merged;
+      return merged;
+    });
+
+    await this.localStorage.saveExpenses(updatedExpenses);
+    return updatedExpense;
   }
 
   async deleteExpense(id: string): Promise<boolean> {
-    await this.db.connect();
-    const collection = this.db.getExpensesCollection();
-
-    const result = await collection.deleteOne({ _id: new ObjectId(id) });
-    return result.deletedCount > 0;
+    const data = await this.localStorage.getLocalData();
+    const updatedExpenses = data.expenses.filter(
+      (expense) => expense.id !== id,
+    );
+    const deleted = updatedExpenses.length !== data.expenses.length;
+    if (deleted) {
+      await this.localStorage.saveExpenses(updatedExpenses);
+    }
+    return deleted;
   }
 
   async calculateBalances(userId: string): Promise<Balance> {
-    await this.db.connect();
     const expenses = await this.getExpensesByUserId(userId);
 
     const owes: { [userId: string]: number } = {};
@@ -240,7 +257,7 @@ export class ExpenseService {
     totalAmount: number,
     splitType: SplitType,
     splits: AdvancedSplit[],
-    splitBetween: any[]
+    splitBetween: any[],
   ): AdvancedSplit[] {
     switch (splitType) {
       case "equal":
@@ -254,11 +271,11 @@ export class ExpenseService {
         // Validate that exact amounts sum to total
         const exactTotal = splits.reduce(
           (sum, split) => sum + (split.amount || 0),
-          0
+          0,
         );
         if (Math.abs(exactTotal - totalAmount) > 0.01) {
           throw new Error(
-            `Exact amounts (${exactTotal}) don't match total amount (${totalAmount})`
+            `Exact amounts (${exactTotal}) don't match total amount (${totalAmount})`,
           );
         }
         return splits.map((split) => ({
@@ -270,11 +287,11 @@ export class ExpenseService {
         // Validate that percentages sum to 100
         const totalPercentage = splits.reduce(
           (sum, split) => sum + (split.percentage || 0),
-          0
+          0,
         );
         if (Math.abs(totalPercentage - 100) > 0.01) {
           throw new Error(
-            `Percentages (${totalPercentage}%) don't sum to 100%`
+            `Percentages (${totalPercentage}%) don't sum to 100%`,
           );
         }
         return splits.map((split) => ({
@@ -288,7 +305,7 @@ export class ExpenseService {
       case "shares":
         const totalShares = splits.reduce(
           (sum, split) => sum + (split.shares || 0),
-          0
+          0,
         );
         if (totalShares === 0) {
           throw new Error("Total shares cannot be zero");
@@ -297,7 +314,7 @@ export class ExpenseService {
           userId: split.userId,
           amount:
             Math.round(
-              ((totalAmount * (split.shares || 0)) / totalShares) * 100
+              ((totalAmount * (split.shares || 0)) / totalShares) * 100,
             ) / 100,
           shares: split.shares,
         }));
@@ -311,7 +328,7 @@ export class ExpenseService {
     lat1: number,
     lon1: number,
     lat2: number,
-    lon2: number
+    lon2: number,
   ): number {
     const R = 6371; // Earth's radius in kilometers
     const dLat = this.degreesToRadians(lat2 - lat1);
@@ -332,7 +349,7 @@ export class ExpenseService {
 
   private transformExpense(expense: any): Expense {
     return {
-      id: expense._id.toString(),
+      id: expense.id,
       description: expense.description,
       amount: expense.amount,
       paidBy: expense.paidBy,
