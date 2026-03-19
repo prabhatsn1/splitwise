@@ -1,11 +1,8 @@
-import { MongoClient, Db, Collection } from "mongodb";
 import { User, Group, Expense, Balance } from "../types";
-import { DATABASE_CONFIG } from "../config";
 
 class DatabaseService {
   private static instance: DatabaseService;
-  private client: MongoClient | null = null;
-  private db: Db | null = null;
+  private connected = false;
 
   private constructor() {}
 
@@ -17,53 +14,52 @@ class DatabaseService {
   }
 
   async connect(): Promise<void> {
-    try {
-      if (!this.client) {
-        this.client = new MongoClient(DATABASE_CONFIG.MONGODB_URI);
-        await this.client.connect();
-        this.db = this.client.db(DATABASE_CONFIG.DB_NAME);
-        console.log("Connected to MongoDB");
-      }
-    } catch (error) {
-      console.error("Failed to connect to MongoDB:", error);
-      throw error;
-    }
+    this.connected = true;
   }
 
   async disconnect(): Promise<void> {
-    if (this.client) {
-      await this.client.close();
-      this.client = null;
-      this.db = null;
-    }
+    this.connected = false;
   }
 
-  getDb(): Db {
-    if (!this.db) {
-      throw new Error("Database not connected");
-    }
-    return this.db;
+  isConnected(): boolean {
+    return this.connected;
   }
 
-  // Collection getters
-  getUsersCollection(): Collection<User> {
-    return this.getDb().collection<User>(DATABASE_CONFIG.COLLECTIONS.USERS);
-  }
-
-  getGroupsCollection(): Collection<Group> {
-    return this.getDb().collection<Group>(DATABASE_CONFIG.COLLECTIONS.GROUPS);
-  }
-
-  getExpensesCollection(): Collection<Expense> {
-    return this.getDb().collection<Expense>(
-      DATABASE_CONFIG.COLLECTIONS.EXPENSES
+  // Legacy methods kept for compatibility with existing call sites.
+  getDb(): never {
+    throw new Error(
+      "Direct DB access is not available in React Native runtime",
     );
   }
 
-  getBalancesCollection(): Collection<Balance> {
-    return this.getDb().collection<Balance>(
-      DATABASE_CONFIG.COLLECTIONS.BALANCES
+  getUsersCollection(): never {
+    throw new Error(
+      "Users collection is not available in React Native runtime",
     );
+  }
+
+  getGroupsCollection(): never {
+    throw new Error(
+      "Groups collection is not available in React Native runtime",
+    );
+  }
+
+  getExpensesCollection(): never {
+    throw new Error(
+      "Expenses collection is not available in React Native runtime",
+    );
+  }
+
+  getBalancesCollection(): never {
+    throw new Error(
+      "Balances collection is not available in React Native runtime",
+    );
+  }
+
+  ensureConnected(): void {
+    if (!this.connected) {
+      throw new Error("Database facade not initialized");
+    }
   }
 }
 
