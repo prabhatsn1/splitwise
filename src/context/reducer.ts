@@ -89,6 +89,27 @@ export function appReducer(state: AppState, action: AppAction): AppState {
           group.id === action.payload.id ? action.payload : group,
         ),
       };
+    case "SET_INVITATIONS":
+      return { ...state, invitations: action.payload };
+    case "ADD_INVITATION":
+      return {
+        ...state,
+        invitations: [...state.invitations, action.payload],
+      };
+    case "UPDATE_INVITATION":
+      return {
+        ...state,
+        invitations: state.invitations.map((inv) =>
+          inv.id === action.payload.id ? action.payload : inv,
+        ),
+      };
+    case "REMOVE_INVITATION":
+      return {
+        ...state,
+        invitations: state.invitations.filter(
+          (inv) => inv.id !== action.payload,
+        ),
+      };
     case "SET_OFFLINE_MODE":
       return { ...state, isOfflineMode: action.payload };
     case "SET_AUTHENTICATED":
