@@ -8,6 +8,57 @@ export const styles = StyleSheet.create({
   groupsList: {
     padding: 16,
   },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: "#333",
+    paddingVertical: 0,
+  },
+  filterRow: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  filterChipActive: {
+    backgroundColor: "#5bc5a7",
+    borderColor: "#5bc5a7",
+  },
+  filterChipText: {
+    fontSize: 13,
+    color: "#666",
+    fontWeight: "500",
+  },
+  filterChipTextActive: {
+    color: "#fff",
+  },
   groupItem: {
     backgroundColor: "#fff",
     borderRadius: 12,

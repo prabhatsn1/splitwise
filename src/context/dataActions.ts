@@ -4,9 +4,11 @@ import { User, Group, Expense, Balance, Settlement } from "../types";
 import { UserService } from "../services/userService";
 import { GroupService } from "../services/groupService";
 import { ExpenseService } from "../services/expenseService";
+import { SettlementService } from "../services/settlementService";
 import LocalStorageService from "../services/localStorageService";
 import NotificationService from "../services/notificationService";
 import SyncQueueService from "../services/syncQueueService";
+import InvitationService, { ShareChannel } from "../services/invitationService";
 
 export function useDataActions(
   state: AppState,
@@ -361,6 +363,8 @@ export function useDataActions(
     [state.isOfflineMode, expenseService, localStorage, calculateUserBalance],
   );
 
+  const settlementService = SettlementService.getInstance();
+
   const settleUp = useCallback(
     async (
       toUserId: string,
@@ -371,14 +375,13 @@ export function useDataActions(
       if (!state.currentUser) return;
 
       try {
-        const settlement: Settlement = {
-          id: localStorage.generateOfflineId(),
+        const settlement = await settlementService.createSettlement({
           fromUserId: state.currentUser.id,
           toUserId,
           amount,
-          date: new Date(),
+          paymentMethod,
           note,
-        };
+        });
 
         dispatch({ type: "ADD_SETTLEMENT", payload: settlement });
 
@@ -398,7 +401,7 @@ export function useDataActions(
         dispatch({ type: "SET_ERROR", payload: "Failed to record settlement" });
       }
     },
-    [state.currentUser, state.friends, localStorage, calculateUserBalance],
+    [state.currentUser, state.friends, calculateUserBalance],
   );
 
   const deleteExpense = useCallback(
@@ -588,6 +591,103 @@ export function useDataActions(
     [state.isOfflineMode, userService, localStorage],
   );
 
+  const updateProfile = useCallback(
+    async (name: string, email: string): Promise<void> => {
+      if (!state.currentUser) return;
+      const trimmedName = name.trim();
+      const trimmedEmail = email.trim().toLowerCase();
+      const updatedUser = await userService.updateUser(state.currentUser.id, {
+        name: trimmedName,
+        email: trimmedEmail,
+      });
+      if (updatedUser) {
+        dispatch({ type: "SET_CURRENT_USER", payload: updatedUser });
+      }
+    },
+    [state.currentUser, userService, dispatch],
+  );
+
+  // ── Invitation actions ────────────────────────────────────────────────
+
+  const invitationService = InvitationService.getInstance();
+
+  const loadInvitations = useCallback(async (): Promise<void> => {
+    try {
+      const invitations = await invitationService.getInvitations();
+      dispatch({ type: "SET_INVITATIONS", payload: invitations });
+    } catch (error) {
+      console.error("Failed to load invitations:", error);
+    }
+  }, [dispatch]);
+
+  const sendInvitation = useCallback(
+    async (
+      toPhone: string,
+      toName: string,
+      message?: string,
+      channel?: ShareChannel,
+    ): Promise<void> => {
+      if (!state.currentUser) return;
+      try {
+        const invitation = await invitationService.sendInvitation(
+          state.currentUser.id,
+          state.currentUser.name,
+          toPhone,
+          toName,
+          message,
+          channel,
+        );
+        dispatch({ type: "ADD_INVITATION", payload: invitation });
+      } catch (error: any) {
+        console.error("Failed to send invitation:", error);
+        throw error; // Let the UI handle the specific error message
+      }
+    },
+    [state.currentUser, dispatch],
+  );
+
+  const cancelInvitation = useCallback(
+    async (invitationId: string): Promise<void> => {
+      try {
+        await invitationService.deleteInvitation(invitationId);
+        dispatch({ type: "REMOVE_INVITATION", payload: invitationId });
+      } catch (error) {
+        console.error("Failed to cancel invitation:", error);
+        dispatch({ type: "SET_ERROR", payload: "Failed to cancel invitation" });
+      }
+    },
+    [dispatch],
+  );
+
+  const resendInvitation = useCallback(
+    async (invitationId: string): Promise<void> => {
+      try {
+        await invitationService.resendInvitation(invitationId);
+      } catch (error: any) {
+        console.error("Failed to resend invitation:", error);
+        throw error;
+      }
+    },
+    [],
+  );
+
+  const markInvitationAccepted = useCallback(
+    async (invitationId: string): Promise<void> => {
+      try {
+        const updated = await invitationService.updateInvitationStatus(
+          invitationId,
+          "accepted",
+        );
+        if (updated) {
+          dispatch({ type: "UPDATE_INVITATION", payload: updated });
+        }
+      } catch (error) {
+        console.error("Failed to update invitation:", error);
+      }
+    },
+    [dispatch],
+  );
+
   return {
     loadUserGroups,
     createGroup,
@@ -602,5 +702,11 @@ export function useDataActions(
     getExpensesByCategory,
     getExpensesByTags,
     getExpensesByLocation,
+    updateProfile,
+    loadInvitations,
+    sendInvitation,
+    cancelInvitation,
+    resendInvitation,
+    markInvitationAccepted,
   };
 }

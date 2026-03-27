@@ -1,5 +1,11 @@
-import React from "react";
-import { View, Text, FlatList, TouchableOpacity } from "react-native";
+import React, { useState, useMemo } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  TextInput,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -8,10 +14,13 @@ import { RootStackParamList, Group } from "../types";
 import { styles } from "../styles/screens/GroupsScreen.styles";
 
 type GroupsNavigationProp = StackNavigationProp<RootStackParamList>;
+type BalanceFilter = "all" | "owed" | "owing" | "settled";
 
 export default function GroupsScreen() {
   const navigation = useNavigation<GroupsNavigationProp>();
   const { state } = useApp();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>("all");
 
   const calculateGroupBalance = (group: Group) => {
     const groupExpenses = state.expenses.filter(
@@ -36,6 +45,22 @@ export default function GroupsScreen() {
 
     return totalOwed - totalOwing;
   };
+
+  const filteredGroups = useMemo(() => {
+    return state.groups.filter((group) => {
+      const matchesSearch = group.name
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+      if (!matchesSearch) return false;
+
+      if (balanceFilter === "all") return true;
+      const balance = calculateGroupBalance(group);
+      if (balanceFilter === "owed") return balance > 0;
+      if (balanceFilter === "owing") return balance < 0;
+      if (balanceFilter === "settled") return balance === 0;
+      return true;
+    });
+  }, [state.groups, state.expenses, searchQuery, balanceFilter]);
 
   const renderGroupItem = ({ item: group }: { item: Group }) => {
     const balance = calculateGroupBalance(group);
@@ -89,19 +114,77 @@ export default function GroupsScreen() {
     );
   };
 
+  const balanceFilters: { key: BalanceFilter; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "owed", label: "Owed to you" },
+    { key: "owing", label: "You owe" },
+    { key: "settled", label: "Settled" },
+  ];
+
   return (
     <View style={styles.container}>
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <Ionicons
+          name="search"
+          size={18}
+          color="#999"
+          style={styles.searchIcon}
+        />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search groups..."
+          placeholderTextColor="#999"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery("")}>
+            <Ionicons name="close-circle" size={18} color="#999" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Balance Filter Chips */}
+      <View style={styles.filterRow}>
+        {balanceFilters.map((f) => (
+          <TouchableOpacity
+            key={f.key}
+            style={[
+              styles.filterChip,
+              balanceFilter === f.key && styles.filterChipActive,
+            ]}
+            onPress={() => setBalanceFilter(f.key)}
+          >
+            <Text
+              style={[
+                styles.filterChipText,
+                balanceFilter === f.key && styles.filterChipTextActive,
+              ]}
+            >
+              {f.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <FlatList
-        data={state.groups}
+        data={filteredGroups}
         renderItem={renderGroupItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.groupsList}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="people-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyText}>No groups yet</Text>
+            <Text style={styles.emptyText}>
+              {searchQuery || balanceFilter !== "all"
+                ? "No groups match your filters"
+                : "No groups yet"}
+            </Text>
             <Text style={styles.emptySubtext}>
-              Create a group to split expenses with friends
+              {searchQuery || balanceFilter !== "all"
+                ? "Try adjusting your search or filter"
+                : "Create a group to split expenses with friends"}
             </Text>
           </View>
         }

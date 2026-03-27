@@ -1,4 +1,12 @@
-import { User, Group, Expense, Balance, Settlement } from "../types";
+import {
+  User,
+  Group,
+  Expense,
+  Balance,
+  Settlement,
+  FriendInvitation,
+} from "../types";
+import { ShareChannel } from "../services/invitationService";
 
 // Network error interface for better error handling
 export interface NetworkError {
@@ -16,6 +24,7 @@ export interface AppState {
   friends: User[];
   balances: Balance[];
   settlements: Settlement[];
+  invitations: FriendInvitation[];
   pendingExpenseIds: Set<string>;
   loading: boolean;
   error: string | null;
@@ -54,6 +63,10 @@ export type AppAction =
   | { type: "SET_LAST_SYNC_ATTEMPT"; payload: Date }
   | { type: "INCREMENT_RETRY_COUNT" }
   | { type: "RESET_RETRY_COUNT" }
+  | { type: "SET_INVITATIONS"; payload: FriendInvitation[] }
+  | { type: "ADD_INVITATION"; payload: FriendInvitation }
+  | { type: "UPDATE_INVITATION"; payload: FriendInvitation }
+  | { type: "REMOVE_INVITATION"; payload: string }
   | { type: "LOGOUT" };
 
 // Context interface
@@ -61,8 +74,10 @@ export interface AppContextType {
   state: AppState;
   dispatch: React.Dispatch<AppAction>;
   // Auth actions
-  loginUser: (email: string) => Promise<void>;
-  createUser: (userData: Omit<User, "id">) => Promise<void>;
+  loginUser: (email: string, password?: string) => Promise<void>;
+  createUser: (
+    userData: Omit<User, "id"> & { password?: string },
+  ) => Promise<void>;
   continueOffline: () => Promise<void>;
   logout: () => Promise<void>;
   syncData: () => Promise<void>;
@@ -91,9 +106,22 @@ export interface AppContextType {
     longitude: number,
     radiusKm?: number,
   ) => Promise<Expense[]>;
+  // Profile actions
+  updateProfile: (name: string, email: string) => Promise<void>;
   // Friend actions
   loadFriends: () => Promise<void>;
   addFriend: (friendData: Omit<User, "id">) => Promise<void>;
+  // Invitation actions
+  loadInvitations: () => Promise<void>;
+  sendInvitation: (
+    toPhone: string,
+    toName: string,
+    message?: string,
+    channel?: ShareChannel,
+  ) => Promise<void>;
+  cancelInvitation: (invitationId: string) => Promise<void>;
+  resendInvitation: (invitationId: string) => Promise<void>;
+  markInvitationAccepted: (invitationId: string) => Promise<void>;
   // Balance actions
   calculateUserBalance: () => Promise<void>;
 }
@@ -106,6 +134,7 @@ export const initialState: AppState = {
   friends: [],
   balances: [],
   settlements: [],
+  invitations: [],
   pendingExpenseIds: new Set<string>(),
   loading: false,
   error: null,

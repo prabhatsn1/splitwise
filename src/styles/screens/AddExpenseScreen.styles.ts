@@ -6,181 +6,307 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  form: {
-    padding: SPACING.lg,
+
+  /* ── Hero section (description + amount) ── */
+  heroSection: {
+    backgroundColor: COLORS.backgroundLight,
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING["2xl"],
+    paddingBottom: SPACING.xl,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    ...SHADOWS.sm,
   },
-  inputGroup: {
+  descriptionInput: {
+    fontSize: TYPOGRAPHY.fontSize["2xl"],
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textPrimary,
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
     marginBottom: SPACING.lg,
   },
-  label: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    marginBottom: SPACING.sm,
-    color: COLORS.textPrimary,
-  },
-  input: {
-    backgroundColor: COLORS.backgroundLight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: SPACING.md,
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.textPrimary,
-  },
-  categoryButton: {
-    backgroundColor: COLORS.backgroundLight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: SPACING.md,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  categoryButtonText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.textPrimary,
-  },
-  tagContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: SPACING.sm,
-  },
-  tag: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 16,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    margin: SPACING.xs,
+  amountRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: SPACING.sm,
   },
-  tagText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.textInverse,
-    marginRight: SPACING.xs,
-  },
-  tagInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  tagInput: {
-    flex: 1,
-    backgroundColor: COLORS.backgroundLight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: SPACING.md,
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.textPrimary,
-    marginRight: SPACING.sm,
-  },
-  addTagButton: {
-    padding: SPACING.sm,
-  },
-  receiptButton: {
-    backgroundColor: COLORS.backgroundLight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: SPACING.md,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  receiptButtonText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.textPrimary,
-    marginLeft: SPACING.sm,
-  },
-  receiptPreview: {
-    backgroundColor: COLORS.backgroundLight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: SPACING.md,
-    alignItems: "center",
-  },
-  receiptImage: {
-    width: 200,
-    height: 150,
-    borderRadius: 8,
-    resizeMode: "cover",
-    marginBottom: SPACING.md,
-  },
-  receiptActions: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-  },
-  receiptActionButton: {
-    flexDirection: "row",
-    alignItems: "center",
+  currencyButton: {
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: 12,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    borderRadius: 6,
-    backgroundColor: COLORS.background,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
-  receiptActionText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    marginLeft: SPACING.xs,
+  currencyText: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.primary,
+  },
+  amountInput: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.fontSize["3xl"],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.textPrimary,
+    paddingVertical: SPACING.xs,
   },
-  locationButton: {
+
+  /* ── Group selector (pill strip) ── */
+  groupStrip: {
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.lg,
+  },
+  groupPill: {
     backgroundColor: COLORS.backgroundLight,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: SPACING.md,
+    borderRadius: 20,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    marginRight: SPACING.sm,
     flexDirection: "row",
     alignItems: "center",
+    gap: 6,
   },
-  locationButtonText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.textPrimary,
-    marginLeft: SPACING.sm,
-  },
-  switchContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: SPACING.sm,
-  },
-  recurringButton: {
-    backgroundColor: COLORS.backgroundLight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: SPACING.md,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  recurringButtonText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.textPrimary,
-  },
-  splitTypeContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-  splitTypeOption: {
-    backgroundColor: COLORS.backgroundLight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: SPACING.sm,
-    margin: SPACING.xs,
-  },
-  selectedSplitTypeOption: {
+  groupPillSelected: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
-  splitTypeText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
+  groupPillText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.textPrimary,
   },
-  selectedSplitTypeText: {
+  groupPillTextSelected: {
     color: COLORS.textInverse,
+  },
+
+  /* ── Icon toolbar ── */
+  toolbarContainer: {
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: SPACING.md,
+  },
+  toolbar: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+  },
+  toolbarChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.backgroundLight,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    gap: 6,
+    ...SHADOWS.sm,
+  },
+  toolbarChipActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+  toolbarChipLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+  },
+  toolbarChipLabelActive: {
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  toolbarChipValue: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    maxWidth: 80,
+  },
+
+  /* ── Expandable panel ── */
+  panelContainer: {
+    paddingHorizontal: SPACING.xl,
+  },
+  panel: {
+    backgroundColor: COLORS.backgroundLight,
+    borderRadius: 16,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    ...SHADOWS.sm,
+  },
+  panelHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: SPACING.md,
+  },
+  panelTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textPrimary,
+  },
+  panelClose: {
+    padding: SPACING.xs,
+  },
+
+  /* ── Category grid ── */
+  categoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: SPACING.md,
+  },
+  categoryItem: {
+    width: "21%",
+    alignItems: "center",
+    paddingVertical: SPACING.md,
+    borderRadius: 14,
+    backgroundColor: COLORS.background,
+    borderWidth: 2,
+    borderColor: "transparent",
+    gap: SPACING.sm,
+  },
+  categoryItemSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+  categoryIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  categoryCheck: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: COLORS.backgroundLight,
+  },
+  categoryLabel: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+  },
+  categoryLabelSelected: {
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+
+  /* ── Who paid ── */
+  payerList: {
+    gap: SPACING.sm,
+  },
+  payerOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    padding: SPACING.md,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  payerOptionSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+  payerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: SPACING.md,
+  },
+  payerAvatarText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textInverse,
+  },
+  payerName: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.textPrimary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+  },
+
+  /* ── Split section ── */
+  splitTypeRow: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
+  },
+  splitTypePill: {
+    flex: 1,
+    paddingVertical: SPACING.sm,
+    alignItems: "center",
+    borderRadius: 10,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  splitTypePillSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  splitTypePillText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textPrimary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+  },
+  splitTypePillTextSelected: {
+    color: COLORS.textInverse,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  memberChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  memberChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.background,
+    borderRadius: 20,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+  },
+  memberChipSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+  memberChipAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  memberChipAvatarText: {
+    fontSize: 10,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textInverse,
+  },
+  memberChipName: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textPrimary,
   },
   customSplitRow: {
     flexDirection: "row",
@@ -194,7 +320,7 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   customSplitInput: {
-    backgroundColor: COLORS.backgroundLight,
+    backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
@@ -204,72 +330,19 @@ export const styles = StyleSheet.create({
     width: 80,
     textAlign: "center",
   },
-  groupSelector: {
-    flexDirection: "row",
-  },
-  groupOption: {
-    backgroundColor: COLORS.backgroundLight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 20,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    marginRight: SPACING.sm,
-  },
-  selectedGroupOption: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  groupOptionText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.textPrimary,
-  },
-  selectedGroupOptionText: {
-    color: COLORS.textInverse,
-  },
-  memberList: {
-    gap: SPACING.sm,
-  },
-  memberOption: {
-    backgroundColor: COLORS.backgroundLight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: SPACING.md,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  selectedMemberOption: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primaryLight,
-  },
-  memberInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: SPACING.sm,
-  },
-  avatarText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.textInverse,
-  },
-  memberName: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.textPrimary,
-  },
   splitPreview: {
-    backgroundColor: COLORS.backgroundLight,
-    borderRadius: 8,
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
     padding: SPACING.md,
+    marginTop: SPACING.sm,
+  },
+  splitPreviewTitle: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.sm,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   splitItem: {
     flexDirection: "row",
@@ -286,45 +359,248 @@ export const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.primary,
   },
-  saveButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    padding: SPACING.lg,
-    alignItems: "center",
-    margin: SPACING.lg,
+
+  /* ── Tags ── */
+  tagSection: {
+    marginBottom: SPACING.md,
   },
-  saveButtonText: {
-    fontSize: TYPOGRAPHY.fontSize.xl,
+  tagSectionTitle: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: SPACING.sm,
+  },
+  tagContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+  },
+  tag: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 20,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    ...SHADOWS.sm,
+  },
+  tagText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textInverse,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+  },
+  tagSuggestion: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.background,
+    borderRadius: 20,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderStyle: "dashed",
+  },
+  tagSuggestionText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+  },
+  tagInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  tagInputWrapper: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    paddingHorizontal: SPACING.md,
+    gap: SPACING.sm,
+  },
+  tagInput: {
+    flex: 1,
+    paddingVertical: SPACING.md,
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.textPrimary,
+  },
+  tagAddButton: {
+    backgroundColor: COLORS.primary,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    ...SHADOWS.sm,
+  },
+  tagAddButtonDisabled: {
+    backgroundColor: COLORS.border,
+  },
+
+  /* ── Receipt ── */
+  receiptOptions: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  receiptOptionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    padding: SPACING.md,
+    gap: 8,
+  },
+  receiptOptionText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textPrimary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+  },
+  receiptPreview: {
+    alignItems: "center",
+  },
+  receiptImage: {
+    width: "100%",
+    height: 160,
+    borderRadius: 12,
+    resizeMode: "cover",
+    marginBottom: SPACING.md,
+  },
+  receiptActions: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%",
+  },
+  receiptActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: 8,
+    backgroundColor: COLORS.background,
+    gap: 4,
+  },
+  receiptActionText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textPrimary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+  },
+  ocrRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: SPACING.sm,
+    gap: 8,
+  },
+  ocrText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+  },
+
+  /* ── Location ── */
+  locationContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+  },
+  locationText: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.textPrimary,
+  },
+
+  /* ── Recurring ── */
+  recurringRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: SPACING.md,
+  },
+  recurringLabel: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.textPrimary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+  },
+  frequencyRow: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  frequencyPill: {
+    flex: 1,
+    paddingVertical: SPACING.sm,
+    alignItems: "center",
+    borderRadius: 10,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  frequencyPillSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  frequencyPillText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textPrimary,
+  },
+  frequencyPillTextSelected: {
     color: COLORS.textInverse,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
-  // Modal styles
+
+  /* ── Save button ── */
+  saveButtonContainer: {
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING["3xl"],
+  },
+  saveButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 16,
+    paddingVertical: SPACING.lg,
+    alignItems: "center",
+    ...SHADOWS.md,
+  },
+  saveButtonText: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    color: COLORS.textInverse,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+
+  /* ── Modal styles ── */
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: COLORS.backgroundLight,
-    borderRadius: 12,
-    padding: SPACING.lg,
-    width: "80%",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: SPACING.xl,
     maxHeight: "70%",
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    alignSelf: "center",
+    marginBottom: SPACING.lg,
   },
   modalTitle: {
     fontSize: TYPOGRAPHY.fontSize.lg,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.lg,
-    textAlign: "center",
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-  },
-  modalSubtitle: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.textPrimary,
-    marginTop: SPACING.md,
-    marginBottom: SPACING.sm,
+    textAlign: "center",
+    marginBottom: SPACING.lg,
   },
   modalOption: {
     flexDirection: "row",
@@ -332,22 +608,10 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     padding: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.borderLight,
   },
   modalOptionText: {
     fontSize: TYPOGRAPHY.fontSize.base,
     color: COLORS.textPrimary,
-  },
-  modalSaveButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    padding: SPACING.md,
-    alignItems: "center",
-    marginTop: SPACING.lg,
-  },
-  modalSaveButtonText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.textInverse,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
 });

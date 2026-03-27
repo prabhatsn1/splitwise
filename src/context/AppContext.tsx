@@ -10,7 +10,6 @@ import { GroupService } from "../services/groupService";
 import { ExpenseService } from "../services/expenseService";
 import DatabaseService from "../services/database";
 import LocalStorageService from "../services/localStorageService";
-import SyncQueueService from "../services/syncQueueService";
 
 // Import modular components
 import { AppContextType, initialState } from "./types";
@@ -59,64 +58,66 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         dispatch({ type: "SET_LOADING", payload: true });
 
+        const db = DatabaseService.getInstance();
+
+        // Initialize Atlas App Services
+        try {
+          await db.initialize();
+        } catch (e) {
+          console.log("Atlas App Services initialization skipped:", e);
+        }
+
         // Check if user was in offline mode
         const isOffline = await localStorage.isOfflineMode();
 
         if (isOffline) {
-          // Continue in offline mode
           await authActions.continueOffline();
         } else {
-          // Check for existing local user data
-          const localData = await localStorage.getLocalData();
-
-          if (
-            localData.currentUser &&
-            !localData.currentUser.id.startsWith("offline_")
-          ) {
-            // Try to auto-login with existing user
+          // Check for existing Atlas session
+          if (db.hasAuthenticatedUser()) {
             try {
-              await DatabaseService.getInstance().connect();
-              const user = await userService.getUserByEmail(
-                localData.currentUser.email,
-              );
+              // Re-open synced Realm with existing session
+              await db.openRealm();
+              dispatch({ type: "SET_CONNECTED", payload: true });
 
-              if (user) {
-                dispatch({ type: "SET_CURRENT_USER", payload: user });
-                dispatch({ type: "SET_OFFLINE_MODE", payload: false });
+              // Load user from Realm
+              const localData = await localStorage.getLocalData();
+              if (localData.currentUser) {
+                const user = await userService.getUserByEmail(
+                  localData.currentUser.email,
+                );
+                if (user) {
+                  dispatch({ type: "SET_CURRENT_USER", payload: user });
+                  dispatch({ type: "SET_OFFLINE_MODE", payload: false });
 
-                // Load user data
-                await Promise.all([
-                  dataActions.loadUserGroups(),
-                  dataActions.loadUserExpenses(),
-                  dataActions.loadFriends(),
-                  dataActions.calculateUserBalance(),
-                ]);
-
-                // Flush any queued offline mutations
-                const syncQueue = SyncQueueService.getInstance();
-                if (syncQueue.pendingCount > 0) {
-                  console.log(
-                    `[AppContext] Flushing ${syncQueue.pendingCount} queued sync items`,
-                  );
-                  syncQueue
-                    .flush(user.id, dispatch)
-                    .catch((err) =>
-                      console.error(
-                        "[AppContext] Sync queue flush error:",
-                        err,
-                      ),
-                    );
+                  await Promise.all([
+                    dataActions.loadUserGroups(),
+                    dataActions.loadUserExpenses(),
+                    dataActions.loadFriends(),
+                    dataActions.calculateUserBalance(),
+                  ]);
+                } else {
+                  dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
                 }
               } else {
                 dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
               }
             } catch (error) {
-              // If database connection fails, offer offline mode
-              console.log("Database connection failed, showing login screen");
+              console.log("Failed to restore session, showing login:", error);
               dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
             }
           } else {
-            dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
+            // No Atlas session — check for local user data
+            const localData = await localStorage.getLocalData();
+            if (
+              localData.currentUser &&
+              !localData.currentUser.id.startsWith("offline_")
+            ) {
+              // Has local user but no Atlas session — show login
+              dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
+            } else {
+              dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
+            }
           }
         }
 
