@@ -54,6 +54,39 @@ const CATEGORIES = [
   "Other",
 ] as const;
 
+const CATEGORY_META: Record<string, { icon: string; color: string }> = {
+  Food: { icon: "restaurant", color: "#FF6B6B" },
+  Transport: { icon: "car", color: "#4ECDC4" },
+  Entertainment: { icon: "film", color: "#A78BFA" },
+  Bills: { icon: "receipt", color: "#F59E0B" },
+  Shopping: { icon: "cart", color: "#EC4899" },
+  Travel: { icon: "airplane", color: "#3B82F6" },
+  Other: { icon: "ellipsis-horizontal", color: "#6B7280" },
+};
+
+const SUGGESTED_TAGS = [
+  "dinner",
+  "lunch",
+  "groceries",
+  "rent",
+  "utilities",
+  "drinks",
+  "trip",
+  "office",
+  "gas",
+  "subscription",
+];
+
+type PanelType =
+  | "category"
+  | "payer"
+  | "split"
+  | "receipt"
+  | "location"
+  | "tags"
+  | "recurring"
+  | null;
+
 export default function AddExpenseScreen() {
   const navigation = useNavigation<AddExpenseNavigationProp>();
   const route = useRoute<AddExpenseRouteProp>();
@@ -94,9 +127,8 @@ export default function AddExpenseScreen() {
   // Split configuration
   const [customSplits, setCustomSplits] = useState<AdvancedSplit[]>([]);
 
-  // UI state
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showRecurringModal, setShowRecurringModal] = useState(false);
+  // UI state — which panel is expanded
+  const [activePanel, setActivePanel] = useState<PanelType>(null);
   const [showReceiptCamera, setShowReceiptCamera] = useState(false);
 
   const currentGroup = state.groups.find((g) => g.id === selectedGroup);
@@ -109,6 +141,10 @@ export default function AddExpenseScreen() {
       setSelectedMembers(currentGroup.members.map((m) => m.id));
     }
   }, [selectedGroup, currentGroup]);
+
+  const togglePanel = (panel: PanelType) => {
+    setActivePanel((prev) => (prev === panel ? null : panel));
+  };
 
   const handleMemberToggle = (userId: string) => {
     setSelectedMembers((prev) =>
@@ -190,7 +226,6 @@ export default function AddExpenseScreen() {
 
   const handleSplitTypeChange = (newSplitType: SplitType) => {
     setSplitType(newSplitType);
-    // Initialize custom splits based on selected members
     if (newSplitType !== "equal") {
       setCustomSplits(
         selectedMembers.map((userId) => ({
@@ -217,9 +252,7 @@ export default function AddExpenseScreen() {
 
   const validateSplits = (): boolean => {
     if (splitType === "equal") return true;
-
     const totalAmount = parseFloat(amount);
-
     if (splitType === "exact") {
       const total = customSplits.reduce(
         (sum, split) => sum + (split.amount || 0),
@@ -227,7 +260,6 @@ export default function AddExpenseScreen() {
       );
       return Math.abs(total - totalAmount) < 0.01;
     }
-
     if (splitType === "percentage") {
       const total = customSplits.reduce(
         (sum, split) => sum + (split.percentage || 0),
@@ -235,11 +267,9 @@ export default function AddExpenseScreen() {
       );
       return Math.abs(total - 100) < 0.01;
     }
-
     if (splitType === "shares") {
       return customSplits.every((split) => (split.shares || 0) > 0);
     }
-
     return true;
   };
 
@@ -248,17 +278,14 @@ export default function AddExpenseScreen() {
       Alert.alert("Error", "Please enter a description");
       return;
     }
-
     if (!amount || parseFloat(amount) <= 0) {
       Alert.alert("Error", "Please enter a valid amount");
       return;
     }
-
     if (selectedMembers.length === 0) {
       Alert.alert("Error", "Please select at least one person to split with");
       return;
     }
-
     if (!validateSplits()) {
       Alert.alert("Error", "Invalid split configuration");
       return;
@@ -275,8 +302,6 @@ export default function AddExpenseScreen() {
     }
 
     const expenseAmount = parseFloat(amount);
-
-    // Prepare splits based on split type
     let splits: AdvancedSplit[];
     if (splitType === "equal") {
       const splitAmount = expenseAmount / selectedMembers.length;
@@ -306,13 +331,7 @@ export default function AddExpenseScreen() {
     };
 
     try {
-      if (isRecurring) {
-        // Use the enhanced service method for recurring expenses
-        await createExpense(newExpenseData);
-      } else {
-        await createExpense(newExpenseData);
-      }
-
+      await createExpense(newExpenseData);
       Alert.alert("Success", "Expense added successfully!", [
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
@@ -323,7 +342,6 @@ export default function AddExpenseScreen() {
 
   const handleCaptureReceipt = async (imageUri: string) => {
     setReceipt(imageUri);
-    // Automatically run OCR on captured receipt
     await handleOcrScan(imageUri);
   };
 
@@ -332,7 +350,6 @@ export default function AddExpenseScreen() {
     try {
       const result = await parseReceipt(imageUri);
       let prefilled: string[] = [];
-
       if (result.amount !== null && result.amount > 0) {
         setAmount(result.amount.toFixed(2));
         prefilled.push(`Amount: ${result.amount.toFixed(2)}`);
@@ -341,17 +358,15 @@ export default function AddExpenseScreen() {
         setDescription(result.description);
         prefilled.push(`Description: ${result.description}`);
       }
-
       if (prefilled.length > 0) {
         Alert.alert(
           "Receipt Scanned",
           `Pre-filled from receipt:\n${prefilled.join("\n")}`,
-          [{ text: "OK" }],
         );
       } else {
         Alert.alert(
           "OCR Result",
-          "Could not extract amount or description from the receipt. Please fill in manually.",
+          "Could not extract details from the receipt. Please fill in manually.",
         );
       }
     } catch (error) {
@@ -365,521 +380,724 @@ export default function AddExpenseScreen() {
     setReceipt("");
   };
 
-  return (
-    <ScrollView style={styles.container}>
-      <View style={styles.form}>
-        {/* Description */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Description</Text>
-          <TextInput
-            style={styles.input}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Enter expense description"
-            placeholderTextColor="#999"
-          />
-        </View>
+  // ── Helper: get the payer's display name ──
+  const payerName =
+    availableMembers.find((m) => m.id === selectedPayer)?.name || "You";
 
-        {/* Amount + Currency */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Amount</Text>
-          <View style={{ flexDirection: "row", gap: 8 }}>
+  // ── Toolbar chip data ──
+  const toolbarItems: {
+    key: PanelType;
+    icon: string;
+    label: string;
+    value?: string;
+    active: boolean;
+  }[] = [
+    {
+      key: "category",
+      icon: CATEGORY_META[category]?.icon || "grid",
+      label: "Category",
+      value: category !== "Other" ? category : undefined,
+      active: category !== "Other",
+    },
+    {
+      key: "payer",
+      icon: "person",
+      label: "Paid by",
+      value: payerName,
+      active: true,
+    },
+    {
+      key: "split",
+      icon: "git-branch",
+      label: "Split",
+      value: splitType !== "equal" ? splitType : "Equal",
+      active: selectedMembers.length > 0,
+    },
+    {
+      key: "receipt",
+      icon: "camera",
+      label: "Receipt",
+      value: receipt ? "Attached" : undefined,
+      active: !!receipt,
+    },
+    {
+      key: "location",
+      icon: "location",
+      label: "Location",
+      value: location?.address ? location.address.split(" ")[0] : undefined,
+      active: !!location,
+    },
+    {
+      key: "tags",
+      icon: "pricetags",
+      label: "Tags",
+      value: tags.length > 0 ? `${tags.length}` : undefined,
+      active: tags.length > 0,
+    },
+    {
+      key: "recurring",
+      icon: "repeat",
+      label: "Recurring",
+      value: isRecurring ? recurringConfig.frequency : undefined,
+      active: isRecurring,
+    },
+  ];
+
+  // ── Render individual panels ──
+
+  const renderCategoryPanel = () => (
+    <View style={styles.panel}>
+      <View style={styles.panelHeader}>
+        <Text style={styles.panelTitle}>Category</Text>
+        <TouchableOpacity
+          style={styles.panelClose}
+          onPress={() => setActivePanel(null)}
+        >
+          <Ionicons name="close" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.categoryGrid}>
+        {CATEGORIES.map((cat) => {
+          const meta = CATEGORY_META[cat];
+          const isSelected = category === cat;
+          return (
             <TouchableOpacity
-              style={{
-                backgroundColor: colors.backgroundLight,
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                flexDirection: "row",
-                alignItems: "center",
+              key={cat}
+              style={[
+                styles.categoryItem,
+                isSelected && styles.categoryItemSelected,
+              ]}
+              onPress={() => {
+                setCategory(cat);
+                setActivePanel(null);
               }}
-              onPress={() => setShowCurrencyModal(true)}
+            >
+              <View
+                style={[
+                  styles.categoryIconBg,
+                  {
+                    backgroundColor: isSelected
+                      ? meta.color
+                      : `${meta.color}18`,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={meta.icon as any}
+                  size={20}
+                  color={isSelected ? "#fff" : meta.color}
+                />
+                {isSelected && (
+                  <View style={styles.categoryCheck}>
+                    <Ionicons name="checkmark" size={10} color="#fff" />
+                  </View>
+                )}
+              </View>
+              <Text
+                style={[
+                  styles.categoryLabel,
+                  isSelected && styles.categoryLabelSelected,
+                ]}
+              >
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+
+  const renderPayerPanel = () => (
+    <View style={styles.panel}>
+      <View style={styles.panelHeader}>
+        <Text style={styles.panelTitle}>Who paid?</Text>
+        <TouchableOpacity
+          style={styles.panelClose}
+          onPress={() => setActivePanel(null)}
+        >
+          <Ionicons name="close" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.payerList}>
+        {availableMembers.map((member) => (
+          <TouchableOpacity
+            key={member.id}
+            style={[
+              styles.payerOption,
+              selectedPayer === member.id && styles.payerOptionSelected,
+            ]}
+            onPress={() => {
+              setSelectedPayer(member.id);
+              setActivePanel(null);
+            }}
+          >
+            <View style={styles.payerAvatar}>
+              <Text style={styles.payerAvatarText}>
+                {member.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <Text style={styles.payerName}>{member.name}</Text>
+            {selectedPayer === member.id && (
+              <Ionicons
+                name="checkmark-circle"
+                size={22}
+                color={colors.primary}
+              />
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderSplitPanel = () => (
+    <View style={styles.panel}>
+      <View style={styles.panelHeader}>
+        <Text style={styles.panelTitle}>Split details</Text>
+        <TouchableOpacity
+          style={styles.panelClose}
+          onPress={() => setActivePanel(null)}
+        >
+          <Ionicons name="close" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Split type pills */}
+      <View style={styles.splitTypeRow}>
+        {(["equal", "exact", "percentage", "shares"] as SplitType[]).map(
+          (type) => (
+            <TouchableOpacity
+              key={type}
+              style={[
+                styles.splitTypePill,
+                splitType === type && styles.splitTypePillSelected,
+              ]}
+              onPress={() => handleSplitTypeChange(type)}
             >
               <Text
-                style={{
-                  fontSize: 16,
-                  color: colors.textPrimary,
-                  fontWeight: "600",
-                }}
+                style={[
+                  styles.splitTypePillText,
+                  splitType === type && styles.splitTypePillTextSelected,
+                ]}
               >
-                {CURRENCIES.find((c) => c.code === currency)?.symbol ??
-                  currency}
+                {type.charAt(0).toUpperCase() + type.slice(1)}
               </Text>
-              <Ionicons
-                name="chevron-down"
-                size={16}
-                color={colors.textSecondary}
-                style={{ marginLeft: 4 }}
-              />
             </TouchableOpacity>
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="0.00"
-              keyboardType="numeric"
-              placeholderTextColor="#999"
-            />
+          ),
+        )}
+      </View>
+
+      {/* Member chips */}
+      <View style={styles.memberChipRow}>
+        {availableMembers.map((member) => (
+          <TouchableOpacity
+            key={member.id}
+            style={[
+              styles.memberChip,
+              selectedMembers.includes(member.id) && styles.memberChipSelected,
+            ]}
+            onPress={() => handleMemberToggle(member.id)}
+          >
+            <View style={styles.memberChipAvatar}>
+              <Text style={styles.memberChipAvatarText}>
+                {member.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <Text style={styles.memberChipName}>{member.name}</Text>
+            {selectedMembers.includes(member.id) && (
+              <Ionicons name="checkmark" size={14} color={colors.primary} />
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Custom split inputs */}
+      {splitType !== "equal" && selectedMembers.length > 0 && (
+        <>
+          {customSplits.map((split) => {
+            const member = availableMembers.find((m) => m.id === split.userId);
+            return (
+              <View key={split.userId} style={styles.customSplitRow}>
+                <Text style={styles.customSplitMember}>{member?.name}</Text>
+                <TextInput
+                  style={styles.customSplitInput}
+                  value={
+                    splitType === "exact"
+                      ? split.amount?.toString() || "0"
+                      : splitType === "percentage"
+                        ? split.percentage?.toString() || "0"
+                        : split.shares?.toString() || "1"
+                  }
+                  onChangeText={(value) => {
+                    const numValue = parseFloat(value) || 0;
+                    const field =
+                      splitType === "exact"
+                        ? "amount"
+                        : splitType === "percentage"
+                          ? "percentage"
+                          : "shares";
+                    updateCustomSplit(split.userId, field, numValue);
+                  }}
+                  keyboardType="numeric"
+                  placeholder={
+                    splitType === "exact"
+                      ? "Amount"
+                      : splitType === "percentage"
+                        ? "%"
+                        : "Shares"
+                  }
+                  placeholderTextColor="#999"
+                />
+              </View>
+            );
+          })}
+        </>
+      )}
+
+      {/* Split preview */}
+      {selectedMembers.length > 0 && amount && validateSplits() && (
+        <View style={styles.splitPreview}>
+          <Text style={styles.splitPreviewTitle}>Preview</Text>
+          {splitType === "equal"
+            ? selectedMembers.map((userId) => {
+                const member = availableMembers.find((m) => m.id === userId);
+                const splitAmount = parseFloat(amount) / selectedMembers.length;
+                return (
+                  <View key={userId} style={styles.splitItem}>
+                    <Text style={styles.splitMemberName}>{member?.name}</Text>
+                    <Text style={styles.splitAmount}>
+                      {formatCurrency(splitAmount, currency)}
+                    </Text>
+                  </View>
+                );
+              })
+            : customSplits.map((split) => {
+                const member = availableMembers.find(
+                  (m) => m.id === split.userId,
+                );
+                let displayAmount = 0;
+                if (splitType === "exact") {
+                  displayAmount = split.amount || 0;
+                } else if (splitType === "percentage") {
+                  displayAmount =
+                    (parseFloat(amount) * (split.percentage || 0)) / 100;
+                } else if (splitType === "shares") {
+                  const totalShares = customSplits.reduce(
+                    (sum, s) => sum + (s.shares || 0),
+                    0,
+                  );
+                  displayAmount =
+                    totalShares > 0
+                      ? (parseFloat(amount) * (split.shares || 0)) / totalShares
+                      : 0;
+                }
+                return (
+                  <View key={split.userId} style={styles.splitItem}>
+                    <Text style={styles.splitMemberName}>{member?.name}</Text>
+                    <Text style={styles.splitAmount}>
+                      {formatCurrency(displayAmount, currency)}
+                    </Text>
+                  </View>
+                );
+              })}
+        </View>
+      )}
+    </View>
+  );
+
+  const renderReceiptPanel = () => (
+    <View style={styles.panel}>
+      <View style={styles.panelHeader}>
+        <Text style={styles.panelTitle}>Receipt</Text>
+        <TouchableOpacity
+          style={styles.panelClose}
+          onPress={() => setActivePanel(null)}
+        >
+          <Ionicons name="close" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+      {receipt ? (
+        <View style={styles.receiptPreview}>
+          <Image source={{ uri: receipt }} style={styles.receiptImage} />
+          {isOcrProcessing && (
+            <View style={styles.ocrRow}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.ocrText}>Scanning receipt...</Text>
+            </View>
+          )}
+          <View style={styles.receiptActions}>
+            <TouchableOpacity
+              style={styles.receiptActionButton}
+              onPress={() => handleOcrScan(receipt)}
+              disabled={isOcrProcessing}
+            >
+              <Ionicons name="scan" size={16} color={colors.primary} />
+              <Text style={styles.receiptActionText}>Re-scan</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.receiptActionButton}
+              onPress={() => setShowReceiptCamera(true)}
+            >
+              <Ionicons name="camera" size={16} color={colors.primary} />
+              <Text style={styles.receiptActionText}>Retake</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.receiptActionButton}
+              onPress={handleRemoveReceipt}
+            >
+              <Ionicons name="trash" size={16} color="#ff6b6b" />
+              <Text style={[styles.receiptActionText, { color: "#ff6b6b" }]}>
+                Remove
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
-
-        {/* Category Selection */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Category</Text>
+      ) : (
+        <View style={styles.receiptOptions}>
           <TouchableOpacity
-            style={styles.categoryButton}
-            onPress={() => setShowCategoryModal(true)}
+            style={styles.receiptOptionButton}
+            onPress={() => setShowReceiptCamera(true)}
           >
-            <Text style={styles.categoryButtonText}>{category}</Text>
-            <Ionicons name="chevron-down" size={20} color="#666" />
+            <Ionicons name="camera" size={22} color={colors.primary} />
+            <Text style={styles.receiptOptionText}>Camera</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.receiptOptionButton}
+            onPress={handlePickImage}
+          >
+            <Ionicons name="images" size={22} color={colors.primary} />
+            <Text style={styles.receiptOptionText}>Gallery</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+
+  const renderLocationPanel = () => (
+    <View style={styles.panel}>
+      <View style={styles.panelHeader}>
+        <Text style={styles.panelTitle}>Location</Text>
+        <TouchableOpacity
+          style={styles.panelClose}
+          onPress={() => setActivePanel(null)}
+        >
+          <Ionicons name="close" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+      <TouchableOpacity
+        style={styles.locationContent}
+        onPress={handleGetLocation}
+      >
+        <Ionicons name="navigate" size={22} color={colors.primary} />
+        <Text style={styles.locationText}>
+          {location ? location.address : "Tap to get current location"}
+        </Text>
+        {location && (
+          <TouchableOpacity onPress={() => setLocation(undefined)}>
+            <Ionicons
+              name="close-circle"
+              size={20}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderTagsPanel = () => {
+    const unusedSuggestions = SUGGESTED_TAGS.filter((s) => !tags.includes(s));
+    return (
+      <View style={styles.panel}>
+        <View style={styles.panelHeader}>
+          <Text style={styles.panelTitle}>Tags</Text>
+          <TouchableOpacity
+            style={styles.panelClose}
+            onPress={() => setActivePanel(null)}
+          >
+            <Ionicons name="close" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
-        {/* Tags */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Tags</Text>
-          <View style={styles.tagContainer}>
-            {tags.map((tag, index) => (
-              <View key={index} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
-                <TouchableOpacity onPress={() => handleRemoveTag(tag)}>
-                  <Ionicons name="close" size={14} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            ))}
+        {/* Active tags */}
+        {tags.length > 0 && (
+          <View style={styles.tagSection}>
+            <Text style={styles.tagSectionTitle}>Active</Text>
+            <View style={styles.tagContainer}>
+              {tags.map((tag, index) => (
+                <View key={index} style={styles.tag}>
+                  <Ionicons name="pricetag" size={12} color="#fff" />
+                  <Text style={styles.tagText}>{tag}</Text>
+                  <TouchableOpacity onPress={() => handleRemoveTag(tag)}>
+                    <Ionicons
+                      name="close-circle"
+                      size={16}
+                      color="rgba(255,255,255,0.7)"
+                    />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
           </View>
-          <View style={styles.tagInputContainer}>
+        )}
+
+        {/* Suggestions */}
+        {unusedSuggestions.length > 0 && (
+          <View style={styles.tagSection}>
+            <Text style={styles.tagSectionTitle}>Suggestions</Text>
+            <View style={styles.tagContainer}>
+              {unusedSuggestions.map((suggestion) => (
+                <TouchableOpacity
+                  key={suggestion}
+                  style={styles.tagSuggestion}
+                  onPress={() => {
+                    if (!tags.includes(suggestion)) {
+                      setTags([...tags, suggestion]);
+                    }
+                  }}
+                >
+                  <Ionicons name="add" size={14} color={colors.primary} />
+                  <Text style={styles.tagSuggestionText}>{suggestion}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Custom input */}
+        <View style={styles.tagInputRow}>
+          <View style={styles.tagInputWrapper}>
+            <Ionicons name="pricetag-outline" size={16} color="#999" />
             <TextInput
               style={styles.tagInput}
               value={newTag}
               onChangeText={setNewTag}
-              placeholder="Add tag"
+              placeholder="Add custom tag..."
               placeholderTextColor="#999"
               onSubmitEditing={handleAddTag}
             />
-            <TouchableOpacity
-              style={styles.addTagButton}
-              onPress={handleAddTag}
-            >
-              <Ionicons name="add" size={20} color="#5bc5a7" />
-            </TouchableOpacity>
           </View>
-        </View>
-
-        {/* Receipt */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Receipt (Optional)</Text>
-          {receipt ? (
-            <View style={styles.receiptPreview}>
-              <Image source={{ uri: receipt }} style={styles.receiptImage} />
-              {isOcrProcessing && (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginBottom: 8,
-                  }}
-                >
-                  <ActivityIndicator size="small" color={colors.primary} />
-                  <Text
-                    style={{
-                      marginLeft: 8,
-                      fontSize: 13,
-                      color: colors.textSecondary,
-                    }}
-                  >
-                    Scanning receipt with OCR...
-                  </Text>
-                </View>
-              )}
-              <View style={styles.receiptActions}>
-                <TouchableOpacity
-                  style={styles.receiptActionButton}
-                  onPress={() => handleOcrScan(receipt)}
-                  disabled={isOcrProcessing}
-                >
-                  <Ionicons name="scan" size={16} color={colors.primary} />
-                  <Text style={styles.receiptActionText}>Re-scan OCR</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.receiptActionButton}
-                  onPress={() => setShowReceiptCamera(true)}
-                >
-                  <Ionicons name="camera" size={16} color="#5bc5a7" />
-                  <Text style={styles.receiptActionText}>Retake</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.receiptActionButton}
-                  onPress={handleRemoveReceipt}
-                >
-                  <Ionicons name="trash" size={16} color="#ff6b6b" />
-                  <Text
-                    style={[styles.receiptActionText, { color: "#ff6b6b" }]}
-                  >
-                    Remove
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.receiptButton}
-              onPress={() => setShowReceiptCamera(true)}
-            >
-              <Ionicons name="camera" size={20} color="#5bc5a7" />
-              <Text style={styles.receiptButtonText}>Capture Receipt</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Location */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Location (Optional)</Text>
           <TouchableOpacity
-            style={styles.locationButton}
-            onPress={handleGetLocation}
+            style={[
+              styles.tagAddButton,
+              !newTag.trim() && styles.tagAddButtonDisabled,
+            ]}
+            onPress={handleAddTag}
+            disabled={!newTag.trim()}
           >
-            <Ionicons name="location" size={20} color="#5bc5a7" />
-            <Text style={styles.locationButtonText}>
-              {location ? location.address : "Add Location"}
-            </Text>
+            <Ionicons name="add" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
+      </View>
+    );
+  };
 
-        {/* Recurring Expense */}
-        <View style={styles.inputGroup}>
-          <View style={styles.switchContainer}>
-            <Text style={styles.label}>Recurring Expense</Text>
-            <Switch
-              value={isRecurring}
-              onValueChange={setIsRecurring}
-              trackColor={{ false: "#e1e1e1", true: "#5bc5a7" }}
-              thumbColor={isRecurring ? "#fff" : "#f4f3f4"}
-            />
-          </View>
-          {isRecurring && (
+  const renderRecurringPanel = () => (
+    <View style={styles.panel}>
+      <View style={styles.panelHeader}>
+        <Text style={styles.panelTitle}>Recurring</Text>
+        <TouchableOpacity
+          style={styles.panelClose}
+          onPress={() => setActivePanel(null)}
+        >
+          <Ionicons name="close" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.recurringRow}>
+        <Text style={styles.recurringLabel}>Enable recurring</Text>
+        <Switch
+          value={isRecurring}
+          onValueChange={setIsRecurring}
+          trackColor={{ false: "#e1e1e1", true: colors.primary }}
+          thumbColor="#fff"
+        />
+      </View>
+      {isRecurring && (
+        <View style={styles.frequencyRow}>
+          {(["weekly", "monthly", "yearly"] as const).map((freq) => (
             <TouchableOpacity
-              style={styles.recurringButton}
-              onPress={() => setShowRecurringModal(true)}
-            >
-              <Text style={styles.recurringButtonText}>
-                {recurringConfig.frequency}
-                {recurringConfig.endDate &&
-                  ` until ${recurringConfig.endDate.toDateString()}`}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color="#666" />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Group Selection */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Group (Optional)</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.groupSelector}
-          >
-            <TouchableOpacity
+              key={freq}
               style={[
-                styles.groupOption,
-                !selectedGroup && styles.selectedGroupOption,
+                styles.frequencyPill,
+                recurringConfig.frequency === freq &&
+                  styles.frequencyPillSelected,
               ]}
-              onPress={() => setSelectedGroup("")}
+              onPress={() =>
+                setRecurringConfig((prev) => ({ ...prev, frequency: freq }))
+              }
             >
               <Text
                 style={[
-                  styles.groupOptionText,
-                  !selectedGroup && styles.selectedGroupOptionText,
+                  styles.frequencyPillText,
+                  recurringConfig.frequency === freq &&
+                    styles.frequencyPillTextSelected,
                 ]}
               >
-                Personal
+                {freq.charAt(0).toUpperCase() + freq.slice(1)}
               </Text>
             </TouchableOpacity>
-            {state.groups.map((group) => (
-              <TouchableOpacity
-                key={group.id}
-                style={[
-                  styles.groupOption,
-                  selectedGroup === group.id && styles.selectedGroupOption,
-                ]}
-                onPress={() => setSelectedGroup(group.id)}
-              >
-                <Text
-                  style={[
-                    styles.groupOptionText,
-                    selectedGroup === group.id &&
-                      styles.selectedGroupOptionText,
-                  ]}
-                >
-                  {group.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          ))}
         </View>
+      )}
+    </View>
+  );
 
-        {/* Who Paid */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Who paid?</Text>
-          <View style={styles.memberList}>
-            {availableMembers.map((member) => (
-              <TouchableOpacity
-                key={member.id}
-                style={[
-                  styles.memberOption,
-                  selectedPayer === member.id && styles.selectedMemberOption,
-                ]}
-                onPress={() => setSelectedPayer(member.id)}
-              >
-                <View style={styles.memberInfo}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                      {member.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  <Text style={styles.memberName}>{member.name}</Text>
-                </View>
-                {selectedPayer === member.id && (
-                  <Ionicons name="checkmark-circle" size={20} color="#5bc5a7" />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
+  const panelRenderers: Record<string, () => React.JSX.Element> = {
+    category: renderCategoryPanel,
+    payer: renderPayerPanel,
+    split: renderSplitPanel,
+    receipt: renderReceiptPanel,
+    location: renderLocationPanel,
+    tags: renderTagsPanel,
+    recurring: renderRecurringPanel,
+  };
+
+  return (
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+      {/* ── Hero: description + amount ── */}
+      <View style={styles.heroSection}>
+        <TextInput
+          style={styles.descriptionInput}
+          value={description}
+          onChangeText={setDescription}
+          placeholder="What was it for?"
+          placeholderTextColor="#bbb"
+        />
+        <View style={styles.amountRow}>
+          <TouchableOpacity
+            style={styles.currencyButton}
+            onPress={() => setShowCurrencyModal(true)}
+          >
+            <Text style={styles.currencyText}>
+              {CURRENCIES.find((c) => c.code === currency)?.symbol ?? currency}
+            </Text>
+            <Ionicons name="chevron-down" size={14} color={colors.primary} />
+          </TouchableOpacity>
+          <TextInput
+            style={styles.amountInput}
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="0.00"
+            keyboardType="numeric"
+            placeholderTextColor="#ccc"
+          />
         </View>
-
-        {/* Split Between */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Split between</Text>
-          <View style={styles.memberList}>
-            {availableMembers.map((member) => (
-              <TouchableOpacity
-                key={member.id}
-                style={[
-                  styles.memberOption,
-                  selectedMembers.includes(member.id) &&
-                    styles.selectedMemberOption,
-                ]}
-                onPress={() => handleMemberToggle(member.id)}
-              >
-                <View style={styles.memberInfo}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                      {member.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  <Text style={styles.memberName}>{member.name}</Text>
-                </View>
-                {selectedMembers.includes(member.id) && (
-                  <Ionicons name="checkmark-circle" size={20} color="#5bc5a7" />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Split Type Selection */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Split Type</Text>
-          <View style={styles.splitTypeContainer}>
-            {(["equal", "exact", "percentage", "shares"] as SplitType[]).map(
-              (type) => (
-                <TouchableOpacity
-                  key={type}
-                  style={[
-                    styles.splitTypeOption,
-                    splitType === type && styles.selectedSplitTypeOption,
-                  ]}
-                  onPress={() => handleSplitTypeChange(type)}
-                >
-                  <Text
-                    style={[
-                      styles.splitTypeText,
-                      splitType === type && styles.selectedSplitTypeText,
-                    ]}
-                  >
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ),
-            )}
-          </View>
-        </View>
-
-        {/* Custom Split Configuration */}
-        {splitType !== "equal" && selectedMembers.length > 0 && (
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Configure Splits</Text>
-            {customSplits.map((split) => {
-              const member = availableMembers.find(
-                (m) => m.id === split.userId,
-              );
-              return (
-                <View key={split.userId} style={styles.customSplitRow}>
-                  <Text style={styles.customSplitMember}>{member?.name}</Text>
-                  <TextInput
-                    style={styles.customSplitInput}
-                    value={
-                      splitType === "exact"
-                        ? split.amount?.toString() || "0"
-                        : splitType === "percentage"
-                          ? split.percentage?.toString() || "0"
-                          : split.shares?.toString() || "1"
-                    }
-                    onChangeText={(value) => {
-                      const numValue = parseFloat(value) || 0;
-                      const field =
-                        splitType === "exact"
-                          ? "amount"
-                          : splitType === "percentage"
-                            ? "percentage"
-                            : "shares";
-                      updateCustomSplit(split.userId, field, numValue);
-                    }}
-                    keyboardType="numeric"
-                    placeholder={
-                      splitType === "exact"
-                        ? "Amount"
-                        : splitType === "percentage"
-                          ? "%"
-                          : "Shares"
-                    }
-                  />
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Split Preview */}
-        {selectedMembers.length > 0 && amount && validateSplits() && (
-          <View style={styles.splitPreview}>
-            <Text style={styles.label}>Split preview</Text>
-            {splitType === "equal"
-              ? selectedMembers.map((userId) => {
-                  const member = availableMembers.find((m) => m.id === userId);
-                  const splitAmount =
-                    parseFloat(amount) / selectedMembers.length;
-                  return (
-                    <View key={userId} style={styles.splitItem}>
-                      <Text style={styles.splitMemberName}>{member?.name}</Text>
-                      <Text style={styles.splitAmount}>
-                        {formatCurrency(splitAmount, currency)}
-                      </Text>
-                    </View>
-                  );
-                })
-              : customSplits.map((split) => {
-                  const member = availableMembers.find(
-                    (m) => m.id === split.userId,
-                  );
-                  let displayAmount = 0;
-
-                  if (splitType === "exact") {
-                    displayAmount = split.amount || 0;
-                  } else if (splitType === "percentage") {
-                    displayAmount =
-                      (parseFloat(amount) * (split.percentage || 0)) / 100;
-                  } else if (splitType === "shares") {
-                    const totalShares = customSplits.reduce(
-                      (sum, s) => sum + (s.shares || 0),
-                      0,
-                    );
-                    displayAmount =
-                      totalShares > 0
-                        ? (parseFloat(amount) * (split.shares || 0)) /
-                          totalShares
-                        : 0;
-                  }
-
-                  return (
-                    <View key={split.userId} style={styles.splitItem}>
-                      <Text style={styles.splitMemberName}>{member?.name}</Text>
-                      <Text style={styles.splitAmount}>
-                        {formatCurrency(displayAmount, currency)}
-                      </Text>
-                    </View>
-                  );
-                })}
-          </View>
-        )}
       </View>
 
-      <TouchableOpacity style={styles.saveButton} onPress={handleSaveExpense}>
-        <Text style={styles.saveButtonText}>Save Expense</Text>
-      </TouchableOpacity>
-
-      {/* Category Modal */}
-      <Modal
-        visible={showCategoryModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowCategoryModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Category</Text>
-            {CATEGORIES.map((cat) => (
-              <TouchableOpacity
-                key={cat}
-                style={styles.modalOption}
-                onPress={() => {
-                  setCategory(cat);
-                  setShowCategoryModal(false);
-                }}
-              >
-                <Text style={styles.modalOptionText}>{cat}</Text>
-                {category === cat && (
-                  <Ionicons name="checkmark" size={20} color="#5bc5a7" />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Recurring Modal */}
-      <Modal
-        visible={showRecurringModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowRecurringModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Recurring Configuration</Text>
-
-            <Text style={styles.modalSubtitle}>Frequency</Text>
-            {(["weekly", "monthly", "yearly"] as const).map((freq) => (
-              <TouchableOpacity
-                key={freq}
-                style={styles.modalOption}
-                onPress={() =>
-                  setRecurringConfig((prev) => ({ ...prev, frequency: freq }))
-                }
-              >
-                <Text style={styles.modalOptionText}>
-                  {freq.charAt(0).toUpperCase() + freq.slice(1)}
-                </Text>
-                {recurringConfig.frequency === freq && (
-                  <Ionicons name="checkmark" size={20} color="#5bc5a7" />
-                )}
-              </TouchableOpacity>
-            ))}
-
-            <TouchableOpacity
-              style={styles.modalSaveButton}
-              onPress={() => setShowRecurringModal(false)}
+      {/* ── Group selector ── */}
+      {state.groups.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.groupStrip}
+        >
+          <TouchableOpacity
+            style={[
+              styles.groupPill,
+              !selectedGroup && styles.groupPillSelected,
+            ]}
+            onPress={() => setSelectedGroup("")}
+          >
+            <Ionicons
+              name="person"
+              size={14}
+              color={!selectedGroup ? "#fff" : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.groupPillText,
+                !selectedGroup && styles.groupPillTextSelected,
+              ]}
             >
-              <Text style={styles.modalSaveButtonText}>Done</Text>
+              Personal
+            </Text>
+          </TouchableOpacity>
+          {state.groups.map((group) => (
+            <TouchableOpacity
+              key={group.id}
+              style={[
+                styles.groupPill,
+                selectedGroup === group.id && styles.groupPillSelected,
+              ]}
+              onPress={() => setSelectedGroup(group.id)}
+            >
+              <Ionicons
+                name="people"
+                size={14}
+                color={
+                  selectedGroup === group.id ? "#fff" : colors.textSecondary
+                }
+              />
+              <Text
+                style={[
+                  styles.groupPillText,
+                  selectedGroup === group.id && styles.groupPillTextSelected,
+                ]}
+              >
+                {group.name}
+              </Text>
             </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+          ))}
+        </ScrollView>
+      )}
 
-      {/* Currency Modal */}
+      {/* ── Icon toolbar ── */}
+      <View style={styles.toolbarContainer}>
+        <View style={styles.toolbar}>
+          {toolbarItems.map((item) => (
+            <TouchableOpacity
+              key={item.key}
+              style={[
+                styles.toolbarChip,
+                (activePanel === item.key || item.active) &&
+                  styles.toolbarChipActive,
+              ]}
+              onPress={() => togglePanel(item.key)}
+            >
+              <Ionicons
+                name={item.icon as any}
+                size={16}
+                color={
+                  activePanel === item.key || item.active
+                    ? colors.primary
+                    : colors.textSecondary
+                }
+              />
+              <Text
+                style={[
+                  styles.toolbarChipLabel,
+                  (activePanel === item.key || item.active) &&
+                    styles.toolbarChipLabelActive,
+                ]}
+              >
+                {item.label}
+              </Text>
+              {item.value && (
+                <Text style={styles.toolbarChipValue} numberOfLines={1}>
+                  · {item.value}
+                </Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* ── Active panel ── */}
+      {activePanel && (
+        <View style={styles.panelContainer}>
+          {panelRenderers[activePanel]?.()}
+        </View>
+      )}
+
+      {/* ── Save ── */}
+      <View style={styles.saveButtonContainer}>
+        <TouchableOpacity style={styles.saveButton} onPress={handleSaveExpense}>
+          <Text style={styles.saveButtonText}>Add Expense</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Currency Modal ── */}
       <Modal
         visible={showCurrencyModal}
         transparent
@@ -887,7 +1105,8 @@ export default function AddExpenseScreen() {
         onRequestClose={() => setShowCurrencyModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: "70%" }]}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Select Currency</Text>
             <ScrollView>
               {CURRENCIES.map((cur) => (
@@ -903,7 +1122,11 @@ export default function AddExpenseScreen() {
                     {cur.symbol} {cur.code} — {cur.name}
                   </Text>
                   {currency === cur.code && (
-                    <Ionicons name="checkmark" size={20} color="#5bc5a7" />
+                    <Ionicons
+                      name="checkmark"
+                      size={20}
+                      color={colors.primary}
+                    />
                   )}
                 </TouchableOpacity>
               ))}
