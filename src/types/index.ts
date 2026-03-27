@@ -2,7 +2,22 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   avatar?: string;
+}
+
+export type InvitationStatus = "pending" | "accepted" | "declined" | "expired";
+
+export interface FriendInvitation {
+  id: string;
+  fromUserId: string;
+  fromUserName: string;
+  toPhone: string;
+  toName: string;
+  status: InvitationStatus;
+  createdAt: Date;
+  respondedAt?: Date;
+  message?: string;
 }
 
 export interface Group {
@@ -84,8 +99,11 @@ export interface Settlement {
   fromUserId: string;
   toUserId: string;
   amount: number;
+  currency?: string;
+  paymentMethod?: string; // "cash" | "upi" | "bank_transfer" | "card" | "other"
   date: Date;
   note?: string;
+  groupId?: string;
 }
 
 // Analytics interfaces
@@ -136,6 +154,8 @@ export type RootStackParamList = {
   GroupAnalytics: { groupId: string };
   SettleUp: { userId: string };
   Analytics: undefined;
+  Settings: undefined;
+  InviteFriend: undefined;
 };
 
 export type TabParamList = {
