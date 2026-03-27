@@ -93,13 +93,17 @@ export default function LoginScreen() {
       Alert.alert("Error", "Please enter your email");
       return;
     }
+    if (!password) {
+      Alert.alert("Error", "Please enter your password");
+      return;
+    }
 
     setLoading(true);
     setLastError(null);
     setShowRetryOptions(false);
 
     try {
-      await loginUser(email.trim().toLowerCase());
+      await loginUser(email.trim().toLowerCase(), password);
     } catch (error) {
       handleError(error);
     } finally {
@@ -112,6 +116,10 @@ export default function LoginScreen() {
       Alert.alert("Error", "Please enter both name and email");
       return;
     }
+    if (!password || password.length < 6) {
+      Alert.alert("Error", "Password must be at least 6 characters");
+      return;
+    }
 
     setLoading(true);
     setLastError(null);
@@ -121,6 +129,7 @@ export default function LoginScreen() {
       await createUser({
         name: name.trim(),
         email: email.trim().toLowerCase(),
+        password,
       });
     } catch (error) {
       handleError(error);
@@ -278,6 +287,21 @@ export default function LoginScreen() {
               placeholder="Enter your email"
               placeholderTextColor="#999"
               keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Enter your password"
+              placeholderTextColor="#999"
+              secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
               editable={!loading}
