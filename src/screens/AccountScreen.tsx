@@ -6,21 +6,38 @@ import {
   TouchableOpacity,
   Alert,
   Switch,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
 import { useApp } from "../context/AppContext";
 import { useTheme, ThemeMode } from "../context/ThemeContext";
+import { RootStackParamList } from "../types";
+
+type AccountNavProp = StackNavigationProp<RootStackParamList>;
 import BiometricService from "../services/biometricService";
 import SyncQueueService from "../services/syncQueueService";
 import { exportToCSV, exportToPDF } from "../services/exportService";
 
 export default function AccountScreen() {
-  const { state, logout, syncData } = useApp();
+  const navigation = useNavigation<AccountNavProp>();
+  const { state, logout, syncData, updateProfile } = useApp();
   const { colors, isDark, themeMode, setThemeMode } = useTheme();
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState("Biometrics");
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+
+  // Edit profile state
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -57,6 +74,36 @@ export default function AccountScreen() {
     }
     await bio.setBiometricEnabled(value);
     setBiometricEnabled(value);
+  };
+
+  const handleOpenEditModal = () => {
+    setEditName(state.currentUser?.name ?? "");
+    setEditEmail(state.currentUser?.email ?? "");
+    setEditModalVisible(true);
+  };
+
+  const handleSaveProfile = async () => {
+    const trimmedName = editName.trim();
+    const trimmedEmail = editEmail.trim();
+    if (!trimmedName) {
+      Alert.alert("Validation Error", "Name cannot be empty.");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      Alert.alert("Validation Error", "Please enter a valid email address.");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await updateProfile(trimmedName, trimmedEmail);
+      setEditModalVisible(false);
+      Alert.alert("Success", "Profile updated successfully.");
+    } catch {
+      Alert.alert("Error", "Failed to update profile. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const calculateTotalBalance = () => {
@@ -111,7 +158,7 @@ export default function AccountScreen() {
   };
 
   const handleSettings = () => {
-    Alert.alert("Settings", "This would open app settings.");
+    navigation.navigate("Settings");
   };
 
   const handleSupport = () => {
@@ -197,6 +244,31 @@ export default function AccountScreen() {
         <Text style={{ fontSize: 16, color: colors.textSecondary }}>
           {state.currentUser?.email}
         </Text>
+        <TouchableOpacity
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginTop: 14,
+            paddingHorizontal: 20,
+            paddingVertical: 8,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: colors.primary,
+          }}
+          onPress={handleOpenEditModal}
+        >
+          <Ionicons name="pencil-outline" size={15} color={colors.primary} />
+          <Text
+            style={{
+              marginLeft: 6,
+              fontSize: 14,
+              color: colors.primary,
+              fontWeight: "500",
+            }}
+          >
+            Edit Profile
+          </Text>
+        </TouchableOpacity>
         {state.isOfflineMode && (
           <View
             style={{
@@ -723,6 +795,174 @@ export default function AccountScreen() {
             : "Connected to cloud"}
         </Text>
       </View>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "flex-end",
+              backgroundColor: "rgba(0,0,0,0.45)",
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                padding: 24,
+                paddingBottom: 40,
+              }}
+            >
+              {/* Header */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 24,
+                }}
+              >
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 20,
+                    fontWeight: "bold",
+                    color: colors.textPrimary,
+                  }}
+                >
+                  Edit Profile
+                </Text>
+                <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Avatar preview */}
+              <View style={{ alignItems: "center", marginBottom: 24 }}>
+                <View
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 36,
+                    backgroundColor: colors.primary,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{ color: "#fff", fontSize: 28, fontWeight: "bold" }}
+                  >
+                    {(editName || state.currentUser?.name || "?")
+                      .charAt(0)
+                      .toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Name field */}
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: colors.textSecondary,
+                  marginBottom: 6,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Full Name
+              </Text>
+              <TextInput
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Enter your name"
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="words"
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                  fontSize: 16,
+                  color: colors.textPrimary,
+                  backgroundColor: colors.backgroundDark,
+                  marginBottom: 16,
+                }}
+              />
+
+              {/* Email field */}
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: colors.textSecondary,
+                  marginBottom: 6,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Email Address
+              </Text>
+              <TextInput
+                value={editEmail}
+                onChangeText={setEditEmail}
+                placeholder="Enter your email"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                  fontSize: 16,
+                  color: colors.textPrimary,
+                  backgroundColor: colors.backgroundDark,
+                  marginBottom: 24,
+                }}
+              />
+
+              {/* Save button */}
+              <TouchableOpacity
+                onPress={handleSaveProfile}
+                disabled={isSaving}
+                style={{
+                  backgroundColor: colors.primary,
+                  borderRadius: 12,
+                  paddingVertical: 14,
+                  alignItems: "center",
+                }}
+              >
+                {isSaving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text
+                    style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}
+                  >
+                    Save Changes
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </ScrollView>
   );
 }
