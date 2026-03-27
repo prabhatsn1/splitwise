@@ -71,13 +71,13 @@ export default function FriendsScreen() {
           expense.splitBetween.some((u) => u.id === friend.id)
         ) {
           // You paid, friend owes you
-          totalOwed += friendSplit.amount;
+          totalOwed += friendSplit.amount ?? 0;
         } else if (
           expense.paidBy.id === friend.id &&
           expense.splitBetween.some((u) => u.id === state.currentUser?.id)
         ) {
           // Friend paid, you owe friend
-          totalOwing += userSplit.amount;
+          totalOwing += userSplit.amount ?? 0;
         }
       }
     });
