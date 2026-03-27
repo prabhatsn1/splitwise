@@ -36,6 +36,9 @@ import SettleUpScreen from "./src/screens/SettleUpScreen";
 import ExpenseDetailsScreen from "./src/screens/ExpenseDetailsScreen";
 import GroupDetailsScreen from "./src/screens/GroupDetailsScreen";
 import GroupAnalyticsScreen from "./src/screens/GroupAnalyticsScreen";
+import AnalyticsScreen from "./src/screens/AnalyticsScreen";
+import SettingsScreen from "./src/screens/SettingsScreen";
+import InviteFriendScreen from "./src/screens/InviteFriendScreen";
 
 // Import services
 import NotificationService from "./src/services/notificationService";
@@ -257,6 +260,21 @@ function AppContent() {
           name="GroupAnalytics"
           component={GroupAnalyticsScreen}
           options={{ title: "Group Analytics" }}
+        />
+        <Stack.Screen
+          name="Analytics"
+          component={AnalyticsScreen}
+          options={{ title: "Analytics" }}
+        />
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{ title: "Settings" }}
+        />
+        <Stack.Screen
+          name="InviteFriend"
+          component={InviteFriendScreen}
+          options={{ title: "Invite Friend" }}
         />
       </Stack.Navigator>
     </NavigationContainer>
