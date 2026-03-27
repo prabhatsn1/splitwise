@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,22 +6,38 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  SectionList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { useApp } from "../context/AppContext";
-import { User, RootStackParamList } from "../types";
+import { User, FriendInvitation, RootStackParamList } from "../types";
 import { styles } from "../styles/screens/FriendsScreen.styles";
 
 type FriendsNavProp = StackNavigationProp<RootStackParamList>;
+type BalanceFilter = "all" | "owes_you" | "you_owe" | "settled";
 
 export default function FriendsScreen() {
-  const { state, addFriend } = useApp();
+  const {
+    state,
+    addFriend,
+    loadInvitations,
+    cancelInvitation,
+    resendInvitation,
+    markInvitationAccepted,
+  } = useApp();
   const navigation = useNavigation<FriendsNavProp>();
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [friendName, setFriendName] = useState("");
   const [friendEmail, setFriendEmail] = useState("");
+  const [friendPhone, setFriendPhone] = useState("");
+  const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>("all");
+
+  // Load invitations on mount
+  useEffect(() => {
+    loadInvitations();
+  }, []);
 
   const calculateFriendBalance = (friend: User) => {
     // Use centralized balance calculation from AppContext
@@ -79,16 +95,75 @@ export default function FriendsScreen() {
       await addFriend({
         name: friendName.trim(),
         email: friendEmail.trim().toLowerCase(),
+        ...(friendPhone.trim() ? { phone: friendPhone.trim() } : {}),
       });
 
       setFriendName("");
       setFriendEmail("");
+      setFriendPhone("");
       setShowAddFriend(false);
       Alert.alert("Success", "Friend added successfully!");
     } catch (error) {
       Alert.alert("Error", "Failed to add friend. Please try again.");
     }
   };
+
+  const pendingInvitations = useMemo(
+    () => state.invitations.filter((inv) => inv.status === "pending"),
+    [state.invitations],
+  );
+
+  const handleCancelInvitation = (inv: FriendInvitation) => {
+    Alert.alert("Cancel Invitation", `Cancel the invite to ${inv.toName}?`, [
+      { text: "No", style: "cancel" },
+      {
+        text: "Yes, Cancel",
+        style: "destructive",
+        onPress: () => cancelInvitation(inv.id),
+      },
+    ]);
+  };
+
+  const handleResendInvitation = async (inv: FriendInvitation) => {
+    try {
+      await resendInvitation(inv.id);
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Could not resend invitation.");
+    }
+  };
+
+  const handleAcceptInvitation = async (inv: FriendInvitation) => {
+    try {
+      await markInvitationAccepted(inv.id);
+      // Also add as friend
+      await addFriend({
+        name: inv.toName,
+        email: "",
+        phone: inv.toPhone,
+      });
+      Alert.alert("Connected!", `${inv.toName} has been added as a friend.`);
+    } catch (error) {
+      Alert.alert("Error", "Failed to accept invitation.");
+    }
+  };
+
+  const filteredFriends = useMemo(() => {
+    return state.friends.filter((friend) => {
+      if (balanceFilter === "all") return true;
+      const balance = calculateFriendBalance(friend);
+      if (balanceFilter === "owes_you") return balance > 0;
+      if (balanceFilter === "you_owe") return balance < 0;
+      if (balanceFilter === "settled") return balance === 0;
+      return true;
+    });
+  }, [state.friends, state.expenses, state.balances, balanceFilter]);
+
+  const balanceFilters: { key: BalanceFilter; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "owes_you", label: "Owes you" },
+    { key: "you_owe", label: "You owe" },
+    { key: "settled", label: "Settled" },
+  ];
 
   const renderFriendItem = ({ item: friend }: { item: User }) => {
     const balance = calculateFriendBalance(friend);
@@ -148,6 +223,29 @@ export default function FriendsScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Balance Filter Chips */}
+      <View style={styles.filterRow}>
+        {balanceFilters.map((f) => (
+          <TouchableOpacity
+            key={f.key}
+            style={[
+              styles.filterChip,
+              balanceFilter === f.key && styles.filterChipActive,
+            ]}
+            onPress={() => setBalanceFilter(f.key)}
+          >
+            <Text
+              style={[
+                styles.filterChipText,
+                balanceFilter === f.key && styles.filterChipTextActive,
+              ]}
+            >
+              {f.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {showAddFriend && (
         <View style={styles.addFriendForm}>
           <Text style={styles.formTitle}>Add a Friend</Text>
@@ -165,6 +263,14 @@ export default function FriendsScreen() {
             placeholder="Friend's email"
             keyboardType="email-address"
             autoCapitalize="none"
+            placeholderTextColor="#999"
+          />
+          <TextInput
+            style={styles.input}
+            value={friendPhone}
+            onChangeText={setFriendPhone}
+            placeholder="Mobile number (optional)"
+            keyboardType="phone-pad"
             placeholderTextColor="#999"
           />
           <View style={styles.formButtons}>
@@ -185,28 +291,88 @@ export default function FriendsScreen() {
       )}
 
       <FlatList
-        data={state.friends}
+        data={filteredFriends}
         renderItem={renderFriendItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.friendsList}
+        ListHeaderComponent={
+          pendingInvitations.length > 0 ? (
+            <View style={styles.invitationsSection}>
+              <Text style={styles.sectionTitle}>
+                Pending Invitations ({pendingInvitations.length})
+              </Text>
+              {pendingInvitations.map((inv) => (
+                <View key={inv.id} style={styles.invitationItem}>
+                  <View style={styles.invAvatar}>
+                    <Ionicons name="paper-plane" size={20} color="#fff" />
+                  </View>
+                  <View style={styles.friendDetails}>
+                    <Text style={styles.friendName}>{inv.toName}</Text>
+                    <Text style={styles.friendEmail}>{inv.toPhone}</Text>
+                    <Text style={styles.invStatus}>Invite sent</Text>
+                  </View>
+                  <View style={styles.invActions}>
+                    <TouchableOpacity
+                      onPress={() => handleResendInvitation(inv)}
+                      style={styles.invActionBtn}
+                    >
+                      <Ionicons name="refresh" size={18} color="#5bc5a7" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleAcceptInvitation(inv)}
+                      style={styles.invActionBtn}
+                    >
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={18}
+                        color="#4CAF50"
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleCancelInvitation(inv)}
+                      style={styles.invActionBtn}
+                    >
+                      <Ionicons name="close-circle" size={18} color="#F44336" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+              <Text style={styles.sectionTitle}>Friends</Text>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="person-add-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyText}>No friends yet</Text>
+            <Text style={styles.emptyText}>
+              {balanceFilter !== "all"
+                ? "No friends match this filter"
+                : "No friends yet"}
+            </Text>
             <Text style={styles.emptySubtext}>
-              Add friends to split expenses together
+              {balanceFilter !== "all"
+                ? "Try selecting a different filter"
+                : "Add friends or send an invite to get started"}
             </Text>
           </View>
         }
       />
 
       {!showAddFriend && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => setShowAddFriend(true)}
-        >
-          <Ionicons name="person-add" size={24} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.fabContainer}>
+          <TouchableOpacity
+            style={[styles.fab, styles.fabSecondary]}
+            onPress={() => setShowAddFriend(true)}
+          >
+            <Ionicons name="person-add" size={22} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={() => navigation.navigate("InviteFriend")}
+          >
+            <Ionicons name="paper-plane" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );
