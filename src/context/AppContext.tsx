@@ -60,11 +60,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         const db = DatabaseService.getInstance();
 
-        // Initialize Atlas App Services
+        // Initialize Supabase client (restores persisted session)
         try {
           await db.initialize();
         } catch (e) {
-          console.log("Atlas App Services initialization skipped:", e);
+          console.log("Supabase initialization skipped:", e);
         }
 
         // Check if user was in offline mode
@@ -72,53 +72,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         if (isOffline) {
           await authActions.continueOffline();
-        } else {
-          // Check for existing Atlas session
-          if (db.hasAuthenticatedUser()) {
-            try {
-              // Re-open synced Realm with existing session
-              await db.openRealm();
-              dispatch({ type: "SET_CONNECTED", payload: true });
+        } else if (db.hasAuthenticatedUser()) {
+          // Existing Supabase session — restore user
+          try {
+            dispatch({ type: "SET_CONNECTED", payload: true });
 
-              // Load user from Realm
-              const localData = await localStorage.getLocalData();
-              if (localData.currentUser) {
-                const user = await userService.getUserByEmail(
-                  localData.currentUser.email,
-                );
-                if (user) {
-                  dispatch({ type: "SET_CURRENT_USER", payload: user });
-                  dispatch({ type: "SET_OFFLINE_MODE", payload: false });
+            const localData = await localStorage.getLocalData();
+            if (localData.currentUser) {
+              const user = await userService.getUserByEmail(
+                localData.currentUser.email,
+              );
+              if (user) {
+                dispatch({ type: "SET_CURRENT_USER", payload: user });
+                dispatch({ type: "SET_OFFLINE_MODE", payload: false });
 
-                  await Promise.all([
-                    dataActions.loadUserGroups(),
-                    dataActions.loadUserExpenses(),
-                    dataActions.loadFriends(),
-                    dataActions.calculateUserBalance(),
-                  ]);
-                } else {
-                  dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
-                }
+                await Promise.all([
+                  dataActions.loadUserGroups(),
+                  dataActions.loadUserExpenses(),
+                  dataActions.loadFriends(),
+                  dataActions.calculateUserBalance(),
+                ]);
               } else {
                 dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
               }
-            } catch (error) {
-              console.log("Failed to restore session, showing login:", error);
-              dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
-            }
-          } else {
-            // No Atlas session — check for local user data
-            const localData = await localStorage.getLocalData();
-            if (
-              localData.currentUser &&
-              !localData.currentUser.id.startsWith("offline_")
-            ) {
-              // Has local user but no Atlas session — show login
-              dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
             } else {
               dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
             }
+          } catch (error) {
+            console.log("Failed to restore session, showing login:", error);
+            dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
           }
+        } else {
+          // No session — show login
+          dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
         }
 
         dispatch({ type: "SET_LOADING", payload: false });
