@@ -1,7 +1,6 @@
 import { Linking, Platform, Share } from "react-native";
-import Realm, { BSON } from "realm";
 import { FriendInvitation, InvitationStatus } from "../types";
-import { InvitationSchema } from "../models/schemas";
+import { InvitationRow } from "../models/schemas";
 import DatabaseService from "./database";
 import LocalStorageService from "./localStorageService";
 
@@ -26,44 +25,32 @@ class InvitationService {
     return InvitationService.instance;
   }
 
-  // ── Realm helpers ─────────────────────────────────────────────────────
+  // ── Supabase helpers ──────────────────────────────────────────────────
 
-  private getRealm(): Realm {
-    return DatabaseService.getInstance().getRealm();
-  }
-
-  private getOwnerId(): string {
+  private isSupabaseAvailable(): boolean {
     try {
-      return DatabaseService.getInstance().getAppUser().id;
-    } catch {
-      return "local";
-    }
-  }
-
-  private isRealmAvailable(): boolean {
-    try {
-      this.getRealm();
-      return true;
+      const db = DatabaseService.getInstance();
+      return db.isConnected();
     } catch {
       return false;
     }
   }
 
   private generateId(): string {
-    return new BSON.ObjectId().toHexString();
+    return `inv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  private toInvitation(ri: InvitationSchema): FriendInvitation {
+  private toInvitation(row: InvitationRow): FriendInvitation {
     return {
-      id: ri._id.toHexString(),
-      fromUserId: ri.fromUserId,
-      fromUserName: ri.fromUserName,
-      toPhone: ri.toPhone,
-      toName: ri.toName,
-      status: ri.status as InvitationStatus,
-      createdAt: ri.createdAt,
-      respondedAt: ri.respondedAt ?? undefined,
-      message: ri.message ?? undefined,
+      id: row.id,
+      fromUserId: row.from_user_id,
+      fromUserName: row.from_user_name,
+      toPhone: row.to_phone,
+      toName: row.to_name,
+      status: row.status as InvitationStatus,
+      createdAt: new Date(row.created_at),
+      respondedAt: row.responded_at ? new Date(row.responded_at) : undefined,
+      message: row.message ?? undefined,
     };
   }
 
@@ -108,10 +95,15 @@ class InvitationService {
   // ── Public API ────────────────────────────────────────────────────────
 
   async getInvitations(): Promise<FriendInvitation[]> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const results = realm.objects<InvitationSchema>("Invitation");
-      return Array.from(results).map((r) => this.toInvitation(r));
+    if (this.isSupabaseAvailable()) {
+      const client = DatabaseService.getInstance().getClient();
+      const userId = DatabaseService.getInstance().getUserId();
+      const { data, error } = await client
+        .from("invitations")
+        .select("*")
+        .eq("from_user_id", userId);
+      if (error) throw error;
+      return (data || []).map((r: InvitationRow) => this.toInvitation(r));
     }
     return this.getInvitationsLocal();
   }
@@ -138,27 +130,22 @@ class InvitationService {
     const body = this.buildSmsBody(fromUserName, customMessage);
     await this.shareViaChannel(channel, normalizedPhone, body);
 
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const ownerId = this.getOwnerId();
-      let invitation: FriendInvitation;
-
-      realm.write(() => {
-        const ri = realm.create<InvitationSchema>("Invitation", {
-          _id: new BSON.ObjectId(),
-          fromUserId,
-          fromUserName,
-          toPhone: normalizedPhone,
-          toName: toName.trim(),
+    if (this.isSupabaseAvailable()) {
+      const client = DatabaseService.getInstance().getClient();
+      const { data, error } = await client
+        .from("invitations")
+        .insert({
+          from_user_id: fromUserId,
+          from_user_name: fromUserName,
+          to_phone: normalizedPhone,
+          to_name: toName.trim(),
           status: "pending",
-          createdAt: new Date(),
-          message: customMessage,
-          ownerId,
-        });
-        invitation = this.toInvitation(ri);
-      });
-
-      return invitation!;
+          message: customMessage ?? null,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return this.toInvitation(data as InvitationRow);
     }
 
     // Fallback: AsyncStorage
@@ -180,22 +167,16 @@ class InvitationService {
     invitationId: string,
     status: InvitationStatus,
   ): Promise<FriendInvitation | null> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const oid = BSON.ObjectId.isValid(invitationId)
-        ? new BSON.ObjectId(invitationId)
-        : null;
-      const ri = oid
-        ? realm.objectForPrimaryKey<InvitationSchema>("Invitation", oid)
-        : null;
-
-      if (!ri) return null;
-
-      realm.write(() => {
-        ri.status = status;
-        ri.respondedAt = new Date();
-      });
-      return this.toInvitation(ri);
+    if (this.isSupabaseAvailable()) {
+      const client = DatabaseService.getInstance().getClient();
+      const { data, error } = await client
+        .from("invitations")
+        .update({ status, responded_at: new Date().toISOString() })
+        .eq("id", invitationId)
+        .select()
+        .single();
+      if (error) return null;
+      return this.toInvitation(data as InvitationRow);
     }
 
     // Fallback
@@ -208,18 +189,9 @@ class InvitationService {
   }
 
   async deleteInvitation(invitationId: string): Promise<void> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const oid = BSON.ObjectId.isValid(invitationId)
-        ? new BSON.ObjectId(invitationId)
-        : null;
-      const ri = oid
-        ? realm.objectForPrimaryKey<InvitationSchema>("Invitation", oid)
-        : null;
-
-      if (ri) {
-        realm.write(() => realm.delete(ri));
-      }
+    if (this.isSupabaseAvailable()) {
+      const client = DatabaseService.getInstance().getClient();
+      await client.from("invitations").delete().eq("id", invitationId);
       return;
     }
 
