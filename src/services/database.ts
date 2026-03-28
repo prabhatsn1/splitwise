@@ -84,24 +84,6 @@ class DatabaseService {
     }
     this.session = null;
   }
-
-  // Legacy stubs for smooth migration
-  async connect(): Promise<void> {
-    await this.initialize();
-  }
-  async openRealm(): Promise<void> {
-    await this.initialize();
-  }
-  async openLocalRealm(): Promise<void> {
-    await this.initialize();
-  }
-  async disconnect(): Promise<void> {}
-  pauseSync(): void {}
-  resumeSync(): void {}
-  async waitForSync(): Promise<void> {}
-  ensureConnected(): void {
-    if (!this.client) throw new Error("Database not initialized.");
-  }
 }
 
 export { DatabaseService };
