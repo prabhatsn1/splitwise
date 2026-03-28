@@ -1,97 +1,69 @@
-import Realm, { BSON } from "realm";
 import {
   Expense,
   Balance,
   AdvancedSplit,
   SplitType,
-  Location,
   RecurringConfig,
   User,
 } from "../types";
-import {
-  ExpenseSchema,
-  ParticipantSchema,
-  SplitSchema,
-} from "../models/schemas";
+import { ExpenseRow } from "../models/schemas";
 import DatabaseService from "./database";
 import LocalStorageService from "./localStorageService";
 
 export class ExpenseService {
   private localStorage = LocalStorageService.getInstance();
 
-  // ── Realm helpers ─────────────────────────────────────────────────────
+  // ── Supabase helpers ──────────────────────────────────────────────────
 
-  private getRealm(): Realm {
-    return DatabaseService.getInstance().getRealm();
+  private getClient() {
+    return DatabaseService.getInstance().getClient();
   }
 
   private getOwnerId(): string {
     try {
-      return DatabaseService.getInstance().getAppUser().id;
+      return DatabaseService.getInstance().getUserId();
     } catch {
       return "local";
     }
   }
 
-  private isRealmAvailable(): boolean {
+  private isSupabaseAvailable(): boolean {
     try {
-      this.getRealm();
-      return true;
+      this.getClient();
+      return DatabaseService.getInstance().hasAuthenticatedUser();
     } catch {
       return false;
     }
   }
 
   private generateExpenseId(): string {
-    return new BSON.ObjectId().toHexString();
+    return `e_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  /** Convert a Realm ExpenseSchema to a plain Expense */
-  private toExpense(re: ExpenseSchema): Expense {
+  private toExpense(row: ExpenseRow): Expense {
     return {
-      id: re.expenseId,
-      description: re.description,
-      amount: re.amount,
-      currency: re.currency ?? "INR",
-      paidBy: {
-        id: re.paidBy.id,
-        name: re.paidBy.name,
-        email: re.paidBy.email,
-        phone: re.paidBy.phone ?? undefined,
-        avatar: re.paidBy.avatar ?? undefined,
-      },
-      splitBetween: Array.from(re.splitBetween).map((p) => ({
-        id: p.id,
-        name: p.name,
-        email: p.email,
-        phone: p.phone ?? undefined,
-        avatar: p.avatar ?? undefined,
-      })),
-      splitType: re.splitType as SplitType,
-      splits: Array.from(re.splits).map((s) => ({
-        userId: s.userId,
-        amount: s.amount ?? undefined,
-        percentage: s.percentage ?? undefined,
-        shares: s.shares ?? undefined,
-      })),
-      category: re.category as Expense["category"],
-      date: re.date,
-      groupId: re.groupId ?? undefined,
-      receipt: re.receipt ?? undefined,
-      location: re.location
+      id: row.expense_id,
+      description: row.description,
+      amount: row.amount,
+      currency: row.currency ?? "INR",
+      paidBy: row.paid_by,
+      splitBetween: row.split_between || [],
+      splitType: row.split_type as SplitType,
+      splits: row.splits || [],
+      category: row.category as Expense["category"],
+      date: new Date(row.date),
+      groupId: row.group_id ?? undefined,
+      receipt: row.receipt ?? undefined,
+      location: row.location ?? undefined,
+      recurring: row.recurring
         ? {
-            latitude: re.location.latitude,
-            longitude: re.location.longitude,
-            address: re.location.address,
+            frequency: row.recurring.frequency as RecurringConfig["frequency"],
+            endDate: row.recurring.endDate
+              ? new Date(row.recurring.endDate)
+              : undefined,
           }
         : undefined,
-      recurring: re.recurring
-        ? {
-            frequency: re.recurring.frequency as RecurringConfig["frequency"],
-            endDate: re.recurring.endDate ?? undefined,
-          }
-        : undefined,
-      tags: Array.from(re.tags),
+      tags: row.tags || [],
     };
   }
 
@@ -114,61 +86,35 @@ export class ExpenseService {
     const expenseId = this.generateExpenseId();
     const date = expenseData.date ? new Date(expenseData.date) : new Date();
 
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const ownerId = this.getOwnerId();
-
-      realm.write(() => {
-        realm.create("Expense", {
-          _id: new BSON.ObjectId(),
-          expenseId,
+    if (this.isSupabaseAvailable()) {
+      const now = new Date().toISOString();
+      await this.getClient()
+        .from("expenses")
+        .insert({
+          expense_id: expenseId,
           description: expenseData.description,
           amount: expenseData.amount,
           currency: expenseData.currency || "INR",
-          paidBy: {
-            id: expenseData.paidBy.id,
-            name: expenseData.paidBy.name,
-            email: expenseData.paidBy.email,
-            phone: expenseData.paidBy.phone,
-            avatar: expenseData.paidBy.avatar,
-          },
-          splitBetween: expenseData.splitBetween.map((u) => ({
-            id: u.id,
-            name: u.name,
-            email: u.email,
-            phone: u.phone,
-            avatar: u.avatar,
-          })),
-          splitType: expenseData.splitType,
-          splits: calculatedSplits.map((s) => ({
-            userId: s.userId,
-            amount: s.amount,
-            percentage: s.percentage,
-            shares: s.shares,
-          })),
+          paid_by: expenseData.paidBy,
+          split_between: expenseData.splitBetween,
+          split_type: expenseData.splitType,
+          splits: calculatedSplits,
           category: expenseData.category,
-          date,
-          groupId: expenseData.groupId,
-          receipt: expenseData.receipt,
-          location: expenseData.location
-            ? {
-                latitude: expenseData.location.latitude,
-                longitude: expenseData.location.longitude,
-                address: expenseData.location.address,
-              }
-            : undefined,
+          date: date.toISOString(),
+          group_id: expenseData.groupId || null,
+          receipt: expenseData.receipt || null,
+          location: expenseData.location || null,
           recurring: expenseData.recurring
             ? {
                 frequency: expenseData.recurring.frequency,
-                endDate: expenseData.recurring.endDate,
+                endDate: expenseData.recurring.endDate?.toISOString(),
               }
-            : undefined,
+            : null,
           tags: expenseData.tags || [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          ownerId,
+          created_at: now,
+          updated_at: now,
+          owner_id: this.getOwnerId(),
         });
-      });
     }
 
     const expense: Expense = {
@@ -179,7 +125,6 @@ export class ExpenseService {
       tags: expenseData.tags || [],
     };
 
-    // Also persist locally for offline access
     const data = await this.localStorage.getLocalData();
     await this.localStorage.saveExpenses([...data.expenses, expense]);
 
@@ -226,27 +171,37 @@ export class ExpenseService {
   }
 
   async getExpenseById(id: string): Promise<Expense | null> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const found = realm
-        .objects<ExpenseSchema>("Expense")
-        .filtered("expenseId == $0", id)[0];
-      return found ? this.toExpense(found) : null;
+    if (this.isSupabaseAvailable()) {
+      const { data } = await this.getClient()
+        .from("expenses")
+        .select("*")
+        .eq("expense_id", id)
+        .single();
+      return data ? this.toExpense(data as ExpenseRow) : null;
     }
 
-    const data = await this.localStorage.getLocalData();
-    return data.expenses.find((e) => e.id === id) || null;
+    const localData = await this.localStorage.getLocalData();
+    return localData.expenses.find((e) => e.id === id) || null;
   }
 
   async getExpensesByUserId(userId: string): Promise<Expense[]> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const results = realm
-        .objects<ExpenseSchema>("Expense")
-        .filtered("paidBy.id == $0 OR ANY splitBetween.id == $0", userId);
-      return this.sortByDateDesc(
-        Array.from(results).map((r) => this.toExpense(r)),
-      );
+    if (this.isSupabaseAvailable()) {
+      // Supabase can't filter inside jsonb arrays easily in one query,
+      // so we fetch by owner and filter in memory like before.
+      const { data } = await this.getClient()
+        .from("expenses")
+        .select("*")
+        .order("date", { ascending: false });
+
+      if (!data) return [];
+
+      return data
+        .map((row: any) => this.toExpense(row as ExpenseRow))
+        .filter(
+          (e) =>
+            e.paidBy.id === userId ||
+            e.splitBetween.some((p) => p.id === userId),
+        );
     }
 
     const data = await this.localStorage.getLocalData();
@@ -258,19 +213,18 @@ export class ExpenseService {
   }
 
   async getExpensesByGroupId(groupId: string): Promise<Expense[]> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const results = realm
-        .objects<ExpenseSchema>("Expense")
-        .filtered("groupId == $0", groupId);
-      return this.sortByDateDesc(
-        Array.from(results).map((r) => this.toExpense(r)),
-      );
+    if (this.isSupabaseAvailable()) {
+      const { data } = await this.getClient()
+        .from("expenses")
+        .select("*")
+        .eq("group_id", groupId)
+        .order("date", { ascending: false });
+      return (data || []).map((row: any) => this.toExpense(row as ExpenseRow));
     }
 
-    const data = await this.localStorage.getLocalData();
+    const localData = await this.localStorage.getLocalData();
     return this.sortByDateDesc(
-      data.expenses.filter((e) => e.groupId === groupId),
+      localData.expenses.filter((e) => e.groupId === groupId),
     );
   }
 
@@ -278,24 +232,28 @@ export class ExpenseService {
     category: string,
     userId?: string,
   ): Promise<Expense[]> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      let query = `category == $0`;
-      const args: any[] = [category];
-      if (userId) {
-        query += ` AND (paidBy.id == $1 OR ANY splitBetween.id == $1)`;
-        args.push(userId);
-      }
-      const results = realm
-        .objects<ExpenseSchema>("Expense")
-        .filtered(query, ...args);
-      return this.sortByDateDesc(
-        Array.from(results).map((r) => this.toExpense(r)),
+    if (this.isSupabaseAvailable()) {
+      const { data } = await this.getClient()
+        .from("expenses")
+        .select("*")
+        .eq("category", category)
+        .order("date", { ascending: false });
+
+      let expenses = (data || []).map((row: any) =>
+        this.toExpense(row as ExpenseRow),
       );
+      if (userId) {
+        expenses = expenses.filter(
+          (e) =>
+            e.paidBy.id === userId ||
+            e.splitBetween.some((p) => p.id === userId),
+        );
+      }
+      return expenses;
     }
 
-    const data = await this.localStorage.getLocalData();
-    const expenses = data.expenses.filter((e) => {
+    const localData = await this.localStorage.getLocalData();
+    const expenses = localData.expenses.filter((e) => {
       if (e.category !== category) return false;
       if (!userId) return true;
       return (
@@ -306,34 +264,33 @@ export class ExpenseService {
   }
 
   async getExpensesByTags(tags: string[], userId?: string): Promise<Expense[]> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      // Realm doesn't support IN on list<string> easily, so filter in-memory
-      const all = realm.objects<ExpenseSchema>("Expense");
-      const tagSet = new Set(tags);
-      const filtered = Array.from(all).filter((e) => {
-        const hasTag = Array.from(e.tags).some((t) => tagSet.has(t));
-        if (!hasTag) return false;
-        if (!userId) return true;
-        return (
-          e.paidBy.id === userId ||
-          Array.from(e.splitBetween).some((p) => p.id === userId)
-        );
-      });
-      return this.sortByDateDesc(filtered.map((r) => this.toExpense(r)));
+    // Tags are stored as jsonb array — filter in memory for both paths
+    let expenses: Expense[];
+
+    if (this.isSupabaseAvailable()) {
+      const { data } = await this.getClient()
+        .from("expenses")
+        .select("*")
+        .order("date", { ascending: false });
+      expenses = (data || []).map((row: any) =>
+        this.toExpense(row as ExpenseRow),
+      );
+    } else {
+      const localData = await this.localStorage.getLocalData();
+      expenses = localData.expenses;
     }
 
     const tagSet = new Set(tags);
-    const data = await this.localStorage.getLocalData();
-    const expenses = data.expenses.filter((e) => {
-      const hasTag = (e.tags || []).some((tag) => tagSet.has(tag));
-      if (!hasTag) return false;
-      if (!userId) return true;
-      return (
-        e.paidBy.id === userId || e.splitBetween.some((p) => p.id === userId)
-      );
-    });
-    return this.sortByDateDesc(expenses);
+    return this.sortByDateDesc(
+      expenses.filter((e) => {
+        const hasTag = (e.tags || []).some((tag) => tagSet.has(tag));
+        if (!hasTag) return false;
+        if (!userId) return true;
+        return (
+          e.paidBy.id === userId || e.splitBetween.some((p) => p.id === userId)
+        );
+      }),
+    );
   }
 
   async getExpensesByLocation(
@@ -342,18 +299,19 @@ export class ExpenseService {
     radiusKm: number = 1,
     userId?: string,
   ): Promise<Expense[]> {
-    // Haversine filtering must be done in memory for both Realm and localStorage
     let expenses: Expense[];
 
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const results = realm
-        .objects<ExpenseSchema>("Expense")
-        .filtered("location != nil");
-      expenses = Array.from(results).map((r) => this.toExpense(r));
+    if (this.isSupabaseAvailable()) {
+      const { data } = await this.getClient()
+        .from("expenses")
+        .select("*")
+        .not("location", "is", null);
+      expenses = (data || []).map((row: any) =>
+        this.toExpense(row as ExpenseRow),
+      );
     } else {
-      const data = await this.localStorage.getLocalData();
-      expenses = data.expenses.filter((e) => !!e.location);
+      const localData = await this.localStorage.getLocalData();
+      expenses = localData.expenses.filter((e) => !!e.location);
     }
 
     if (userId) {
@@ -380,66 +338,58 @@ export class ExpenseService {
     id: string,
     expenseData: Partial<Expense>,
   ): Promise<Expense | null> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const realmExp = realm
-        .objects<ExpenseSchema>("Expense")
-        .filtered("expenseId == $0", id)[0];
-      if (!realmExp) return null;
+    if (this.isSupabaseAvailable()) {
+      const existing = await this.getExpenseById(id);
+      if (!existing) return null;
 
-      realm.write(() => {
-        if (expenseData.description !== undefined)
-          realmExp.description = expenseData.description;
-        if (expenseData.amount !== undefined)
-          realmExp.amount = expenseData.amount;
-        if (expenseData.currency !== undefined)
-          realmExp.currency = expenseData.currency;
-        if (expenseData.category !== undefined)
-          realmExp.category = expenseData.category;
-        if (expenseData.date !== undefined)
-          realmExp.date = new Date(expenseData.date);
-        if (expenseData.receipt !== undefined)
-          realmExp.receipt = expenseData.receipt;
-        if (expenseData.tags !== undefined) {
-          realmExp.tags.splice(0, realmExp.tags.length);
-          expenseData.tags.forEach((t) => realmExp.tags.push(t));
-        }
-        realmExp.updatedAt = new Date();
+      const merged = { ...existing, ...expenseData, id } as Expense;
 
-        // Recalculate splits if relevant fields changed
-        if (
-          expenseData.amount !== undefined ||
-          expenseData.splitType !== undefined ||
-          expenseData.splits !== undefined ||
-          expenseData.splitBetween !== undefined
-        ) {
-          const merged = this.toExpense(realmExp);
-          const newSplits = this.calculateSplits(
-            merged.amount,
-            merged.splitType,
-            merged.splits,
-            merged.splitBetween,
-          );
-          realmExp.splits.splice(0, realmExp.splits.length);
-          newSplits.forEach((s) => {
-            realmExp.splits.push({
-              userId: s.userId,
-              amount: s.amount,
-              percentage: s.percentage,
-              shares: s.shares,
-            } as any);
-          });
-        }
-      });
+      if (
+        expenseData.amount !== undefined ||
+        expenseData.splitType !== undefined ||
+        expenseData.splits !== undefined ||
+        expenseData.splitBetween !== undefined
+      ) {
+        merged.splits = this.calculateSplits(
+          merged.amount,
+          merged.splitType,
+          merged.splits,
+          merged.splitBetween,
+        );
+      }
 
-      const updated = this.toExpense(realmExp);
-      // Mirror to local storage
-      const data = await this.localStorage.getLocalData();
-      const updatedExpenses = data.expenses.map((e) =>
-        e.id === id ? updated : e,
+      const updates: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (expenseData.description !== undefined)
+        updates.description = expenseData.description;
+      if (expenseData.amount !== undefined) updates.amount = expenseData.amount;
+      if (expenseData.currency !== undefined)
+        updates.currency = expenseData.currency;
+      if (expenseData.category !== undefined)
+        updates.category = expenseData.category;
+      if (expenseData.date !== undefined)
+        updates.date = new Date(expenseData.date).toISOString();
+      if (expenseData.receipt !== undefined)
+        updates.receipt = expenseData.receipt;
+      if (expenseData.tags !== undefined) updates.tags = expenseData.tags;
+      if (merged.splits !== existing.splits) updates.splits = merged.splits;
+      if (expenseData.splitBetween !== undefined)
+        updates.split_between = expenseData.splitBetween;
+      if (expenseData.splitType !== undefined)
+        updates.split_type = expenseData.splitType;
+
+      await this.getClient()
+        .from("expenses")
+        .update(updates)
+        .eq("expense_id", id);
+
+      const localData = await this.localStorage.getLocalData();
+      const updatedExpenses = localData.expenses.map((e) =>
+        e.id === id ? merged : e,
       );
       await this.localStorage.saveExpenses(updatedExpenses);
-      return updated;
+      return merged;
     }
 
     // Fallback: localStorage
@@ -471,14 +421,8 @@ export class ExpenseService {
   }
 
   async deleteExpense(id: string): Promise<boolean> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const realmExp = realm
-        .objects<ExpenseSchema>("Expense")
-        .filtered("expenseId == $0", id)[0];
-      if (realmExp) {
-        realm.write(() => realm.delete(realmExp));
-      }
+    if (this.isSupabaseAvailable()) {
+      await this.getClient().from("expenses").delete().eq("expense_id", id);
     }
 
     const data = await this.localStorage.getLocalData();
