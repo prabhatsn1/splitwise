@@ -34,11 +34,10 @@ export interface SyncProgress {
 type SyncProgressListener = (progress: SyncProgress) => void;
 
 // ── Service ────────────────────────────────────────────────────────────────────
-// NOTE: With Realm Device Sync, most sync operations are handled automatically
-// by the Realm SDK. This service is kept as a lightweight fallback for edge
-// cases where operations fail outside of Realm (e.g. pure AsyncStorage mode).
-// When a synced Realm is active, enqueued items are auto-cleared since Realm
-// handles all synchronization.
+// NOTE: With Supabase, most operations are direct API calls. This service is
+// kept as a lightweight fallback queue for operations that fail due to network
+// issues (e.g. pure AsyncStorage/offline mode). When Supabase is connected,
+// enqueued items are auto-cleared since operations go directly to the server.
 
 const QUEUE_STORAGE_KEY = "@splitwise_sync_queue";
 
@@ -62,10 +61,10 @@ class SyncQueueService {
   // ── Public API ─────────────────────────────────────────────────────────────
 
   async enqueue(action: SyncActionType, payload: any): Promise<string> {
-    // If Realm sync is active, writes are synced automatically — skip queue
+    // If Supabase is connected, writes go directly to the server — skip queue
     const db = DatabaseService.getInstance();
-    if (db.getRealm() && db.hasAuthenticatedUser()) {
-      return "realm-synced";
+    if (db.isConnected()) {
+      return "supabase-synced";
     }
 
     const item: SyncQueueItem = {
@@ -104,10 +103,10 @@ class SyncQueueService {
     _userId?: string,
     _dispatch?: React.Dispatch<any>,
   ): Promise<SyncProgress> {
-    // When Realm sync is active, there's nothing to flush — Realm handles it.
+    // When Supabase is connected, there's nothing to flush — operations go direct.
     const db = DatabaseService.getInstance();
-    if (db.getRealm() && db.hasAuthenticatedUser()) {
-      // Clear any stale queued items since Realm is now syncing
+    if (db.isConnected()) {
+      // Clear any stale queued items since Supabase is connected
       if (this.queue.length > 0) {
         this.queue = [];
         await this.persistQueue();
