@@ -38,6 +38,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-dev-client",
       [
         "expo-camera",
         {
@@ -48,7 +49,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "32cfbf2d-efe9-4e86-a9d4-3c62d31a540f"
+        "projectId": "f26607db-bae5-40e3-822d-0396a5ae9af9"
       }
     }
   }
