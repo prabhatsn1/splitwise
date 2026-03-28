@@ -20,7 +20,7 @@ export default function LoadingScreen({
             <Text style={styles.errorTitle}>Connection Error</Text>
             <Text style={styles.errorMessage}>{error}</Text>
             <Text style={styles.errorHint}>
-              Please check your MongoDB connection and try again
+              Please check your connection and try again
             </Text>
           </>
         ) : (
