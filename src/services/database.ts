@@ -1,22 +1,21 @@
-import Realm, { BSON } from "realm";
-import { ATLAS_CONFIG } from "../config";
-import { allSchemas } from "../models/schemas";
+import "react-native-url-polyfill/auto";
+import { createClient, SupabaseClient, Session } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SUPABASE_CONFIG } from "../config";
 
 /**
- * DatabaseService — singleton that manages both the Realm App
- * (Atlas App Services authentication) and the synced Realm instance
- * (Flexible Sync with MongoDB Atlas).
+ * DatabaseService — singleton that manages the Supabase client
+ * and authentication state.
  *
  * Usage:
  *   const db = DatabaseService.getInstance();
- *   await db.initialize();          // call once at app start
- *   const realm = db.getRealm();    // local+synced Realm
- *   const app = db.getApp();        // Atlas App (for auth)
+ *   await db.initialize();
+ *   const client = db.getClient();
  */
 class DatabaseService {
   private static instance: DatabaseService;
-  private app: Realm.App | null = null;
-  private realm: Realm | null = null;
+  private client: SupabaseClient | null = null;
+  private session: Session | null = null;
 
   private constructor() {}
 
@@ -27,174 +26,65 @@ class DatabaseService {
     return DatabaseService.instance;
   }
 
-  /**
-   * Initialize the Atlas App connection (does NOT open Realm yet).
-   * Call this early in app startup.
-   */
-  async initialize(): Promise<Realm.App> {
-    if (this.app) return this.app;
-    this.app = new Realm.App({ id: ATLAS_CONFIG.APP_ID });
-    return this.app;
-  }
+  async initialize(): Promise<SupabaseClient> {
+    if (this.client) return this.client;
 
-  /**
-   * Open (or return) a synced Realm for the currently logged-in user.
-   * Requires the user to be authenticated first.
-   */
-  async openRealm(): Promise<Realm> {
-    if (this.realm && !this.realm.isClosed) return this.realm;
-
-    const user = this.getAppUser();
-
-    const config: Realm.Configuration = {
-      schema: allSchemas,
-      sync: {
-        user,
-        flexible: true,
-        initialSubscriptions: {
-          update: (subs, realm) => {
-            // Subscribe to all data belonging to the current user
-            subs.add(realm.objects("User").filtered("ownerId == $0", user.id), {
-              name: "my-users",
-            });
-            subs.add(
-              realm.objects("Expense").filtered("ownerId == $0", user.id),
-              { name: "my-expenses" },
-            );
-            subs.add(
-              realm.objects("Group").filtered("ownerId == $0", user.id),
-              { name: "my-groups" },
-            );
-            subs.add(
-              realm.objects("Settlement").filtered("ownerId == $0", user.id),
-              { name: "my-settlements" },
-            );
-            subs.add(
-              realm.objects("Friendship").filtered("ownerId == $0", user.id),
-              { name: "my-friendships" },
-            );
-            subs.add(
-              realm.objects("Invitation").filtered("ownerId == $0", user.id),
-              { name: "my-invitations" },
-            );
-            subs.add(
-              realm.objects("Balance").filtered("ownerId == $0", user.id),
-              { name: "my-balances" },
-            );
-          },
-        },
-        onError: (session, error) => {
-          console.error("Realm sync error:", error.message);
-        },
+    this.client = createClient(SUPABASE_CONFIG.URL, SUPABASE_CONFIG.ANON_KEY, {
+      auth: {
+        storage: AsyncStorage as any,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
       },
-    };
-
-    this.realm = await Realm.open(config);
-    return this.realm;
-  }
-
-  /**
-   * Open a local-only (no sync) Realm for offline / anonymous use.
-   */
-  async openLocalRealm(): Promise<Realm> {
-    if (this.realm && !this.realm.isClosed) return this.realm;
-
-    this.realm = await Realm.open({
-      schema: allSchemas,
-      path: "splitwise-local.realm",
     });
-    return this.realm;
+
+    // Restore persisted session
+    const {
+      data: { session },
+    } = await this.client.auth.getSession();
+    this.session = session;
+
+    // Listen for auth state changes
+    this.client.auth.onAuthStateChange((_event, session) => {
+      this.session = session;
+    });
+
+    return this.client;
   }
 
-  /** Get the currently-open Realm (throws if not open). */
-  getRealm(): Realm {
-    if (!this.realm || this.realm.isClosed) {
-      throw new Error(
-        "Realm is not open. Call openRealm() or openLocalRealm() first.",
-      );
+  getClient(): SupabaseClient {
+    if (!this.client) {
+      throw new Error("Supabase not initialized. Call initialize() first.");
     }
-    return this.realm;
+    return this.client;
   }
 
-  /** Get the Atlas App (throws if not initialized). */
-  getApp(): Realm.App {
-    if (!this.app) {
-      throw new Error("Atlas App not initialized. Call initialize() first.");
+  getSession(): Session | null {
+    return this.session;
+  }
+
+  getUserId(): string {
+    if (!this.session?.user) {
+      throw new Error("No authenticated user.");
     }
-    return this.app;
+    return this.session.user.id;
   }
 
-  /** Convenience: get the currently logged-in Atlas user. */
-  getAppUser(): Realm.User {
-    const user = this.app?.currentUser;
-    if (!user) {
-      throw new Error("No authenticated Atlas user. Please log in first.");
-    }
-    return user;
-  }
-
-  /** Check if there's a logged-in Atlas user. */
   hasAuthenticatedUser(): boolean {
-    return !!this.app?.currentUser;
+    return !!this.session?.user;
   }
 
-  /** Check if Realm is open and usable. */
   isConnected(): boolean {
-    return !!this.realm && !this.realm.isClosed;
+    return !!this.client && !!this.session;
   }
 
-  /** Pause sync (e.g. when the app is backgrounded). */
-  pauseSync(): void {
-    if (this.realm?.syncSession) {
-      this.realm.syncSession.pause();
-    }
-  }
-
-  /** Resume sync. */
-  resumeSync(): void {
-    if (this.realm?.syncSession) {
-      this.realm.syncSession.resume();
-    }
-  }
-
-  /** Wait for any pending uploads/downloads to finish. */
-  async waitForSync(timeoutMs = ATLAS_CONFIG.SYNC_TIMEOUT): Promise<void> {
-    if (!this.realm?.syncSession) return;
-    await Promise.all([
-      this.realm.syncSession.uploadAllLocalChanges(timeoutMs),
-      this.realm.syncSession.downloadAllServerChanges(timeoutMs),
-    ]);
-  }
-
-  /** Close the Realm and clean up. */
-  async disconnect(): Promise<void> {
-    if (this.realm && !this.realm.isClosed) {
-      this.realm.close();
-    }
-    this.realm = null;
-  }
-
-  /** Fully log out the Atlas user and close Realm. */
   async logout(): Promise<void> {
-    await this.disconnect();
-    if (this.app?.currentUser) {
-      await this.app.currentUser.logOut();
+    if (this.client) {
+      await this.client.auth.signOut();
     }
-  }
-
-  // ── Legacy compatibility stubs ──────────────────────────────────────────
-
-  /** @deprecated Use initialize() + openRealm() instead */
-  async connect(): Promise<void> {
-    await this.initialize();
-  }
-
-  /** @deprecated */
-  ensureConnected(): void {
-    if (!this.isConnected()) {
-      throw new Error("Database not initialized. Call openRealm() first.");
-    }
+    this.session = null;
   }
 }
 
+export { DatabaseService };
 export default DatabaseService;

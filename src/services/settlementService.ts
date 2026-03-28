@@ -1,6 +1,5 @@
-import Realm, { BSON } from "realm";
 import { Settlement } from "../types";
-import { SettlementSchema } from "../models/schemas";
+import { SettlementRow } from "../models/schemas";
 import DatabaseService from "./database";
 import LocalStorageService from "./localStorageService";
 
@@ -15,37 +14,37 @@ export class SettlementService {
     return SettlementService.instance;
   }
 
-  // ── Realm helpers ─────────────────────────────────────────────────────
+  // ── Supabase helpers ──────────────────────────────────────────────────
 
-  private getRealm(): Realm {
-    return DatabaseService.getInstance().getRealm();
+  private getClient() {
+    return DatabaseService.getInstance().getClient();
   }
 
   private getOwnerId(): string {
     try {
-      return DatabaseService.getInstance().getAppUser().id;
+      return DatabaseService.getInstance().getUserId();
     } catch {
       return "local";
     }
   }
 
-  private isRealmAvailable(): boolean {
+  private isSupabaseAvailable(): boolean {
     try {
-      this.getRealm();
-      return true;
+      this.getClient();
+      return DatabaseService.getInstance().hasAuthenticatedUser();
     } catch {
       return false;
     }
   }
 
-  private toSettlement(rs: SettlementSchema): Settlement {
+  private toSettlement(row: SettlementRow): Settlement {
     return {
-      id: rs.settlementId,
-      fromUserId: rs.fromUserId,
-      toUserId: rs.toUserId,
-      amount: rs.amount,
-      date: rs.date,
-      note: rs.note ?? undefined,
+      id: row.settlement_id,
+      fromUserId: row.from_user_id,
+      toUserId: row.to_user_id,
+      amount: row.amount,
+      date: new Date(row.date),
+      note: row.note ?? undefined,
     };
   }
 
@@ -60,29 +59,25 @@ export class SettlementService {
     note?: string;
     groupId?: string;
   }): Promise<Settlement> {
-    const settlementId = new BSON.ObjectId().toHexString();
+    const settlementId = `s_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const date = new Date();
 
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const ownerId = this.getOwnerId();
-
-      realm.write(() => {
-        realm.create("Settlement", {
-          _id: new BSON.ObjectId(),
-          settlementId,
-          fromUserId: data.fromUserId,
-          toUserId: data.toUserId,
+    if (this.isSupabaseAvailable()) {
+      await this.getClient()
+        .from("settlements")
+        .insert({
+          settlement_id: settlementId,
+          from_user_id: data.fromUserId,
+          to_user_id: data.toUserId,
           amount: data.amount,
           currency: data.currency || "INR",
-          paymentMethod: data.paymentMethod || "cash",
-          date,
-          note: data.note,
-          groupId: data.groupId,
-          createdAt: new Date(),
-          ownerId,
+          payment_method: data.paymentMethod || "cash",
+          date: date.toISOString(),
+          note: data.note || null,
+          group_id: data.groupId || null,
+          created_at: date.toISOString(),
+          owner_id: this.getOwnerId(),
         });
-      });
     }
 
     return {
@@ -96,45 +91,40 @@ export class SettlementService {
   }
 
   async getSettlementsByUserId(userId: string): Promise<Settlement[]> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const results = realm
-        .objects<SettlementSchema>("Settlement")
-        .filtered("fromUserId == $0 OR toUserId == $0", userId);
-      return Array.from(results)
-        .map((r) => this.toSettlement(r))
-        .sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-        );
+    if (this.isSupabaseAvailable()) {
+      const { data } = await this.getClient()
+        .from("settlements")
+        .select("*")
+        .or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`)
+        .order("date", { ascending: false });
+      return (data || []).map((row: any) =>
+        this.toSettlement(row as SettlementRow),
+      );
     }
     return [];
   }
 
   async getSettlementsByGroupId(groupId: string): Promise<Settlement[]> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const results = realm
-        .objects<SettlementSchema>("Settlement")
-        .filtered("groupId == $0", groupId);
-      return Array.from(results)
-        .map((r) => this.toSettlement(r))
-        .sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-        );
+    if (this.isSupabaseAvailable()) {
+      const { data } = await this.getClient()
+        .from("settlements")
+        .select("*")
+        .eq("group_id", groupId)
+        .order("date", { ascending: false });
+      return (data || []).map((row: any) =>
+        this.toSettlement(row as SettlementRow),
+      );
     }
     return [];
   }
 
   async deleteSettlement(id: string): Promise<boolean> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const rs = realm
-        .objects<SettlementSchema>("Settlement")
-        .filtered("settlementId == $0", id)[0];
-      if (rs) {
-        realm.write(() => realm.delete(rs));
-        return true;
-      }
+    if (this.isSupabaseAvailable()) {
+      const { error } = await this.getClient()
+        .from("settlements")
+        .delete()
+        .eq("settlement_id", id);
+      return !error;
     }
     return false;
   }

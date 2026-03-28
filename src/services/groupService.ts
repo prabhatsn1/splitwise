@@ -1,54 +1,52 @@
-import Realm, { BSON } from "realm";
 import { Group, User } from "../types";
-import { GroupSchema } from "../models/schemas";
+import { GroupRow } from "../models/schemas";
 import DatabaseService from "./database";
 import LocalStorageService from "./localStorageService";
 
 export class GroupService {
   private localStorage = LocalStorageService.getInstance();
 
-  // ── Realm helpers ─────────────────────────────────────────────────────
+  // ── Supabase helpers ──────────────────────────────────────────────────
 
-  private getRealm(): Realm {
-    return DatabaseService.getInstance().getRealm();
+  private getClient() {
+    return DatabaseService.getInstance().getClient();
   }
 
   private getOwnerId(): string {
     try {
-      return DatabaseService.getInstance().getAppUser().id;
+      return DatabaseService.getInstance().getUserId();
     } catch {
       return "local";
     }
   }
 
-  private isRealmAvailable(): boolean {
+  private isSupabaseAvailable(): boolean {
     try {
-      this.getRealm();
-      return true;
+      this.getClient();
+      return DatabaseService.getInstance().hasAuthenticatedUser();
     } catch {
       return false;
     }
   }
 
   private generateGroupId(): string {
-    return new BSON.ObjectId().toHexString();
+    return `g_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  /** Convert a Realm GroupSchema object to a plain Group */
-  private toGroup(rg: GroupSchema): Group {
+  private toGroup(row: GroupRow): Group {
     return {
-      id: rg.groupId,
-      name: rg.name,
-      description: rg.description ?? undefined,
-      members: Array.from(rg.members).map((m) => ({
+      id: row.group_id,
+      name: row.name,
+      description: row.description ?? undefined,
+      members: (row.members || []).map((m) => ({
         id: m.id,
         name: m.name,
         email: m.email,
         phone: m.phone ?? undefined,
         avatar: m.avatar ?? undefined,
       })),
-      createdAt: rg.createdAt,
-      simplifyDebts: rg.simplifyDebts,
+      createdAt: new Date(row.created_at),
+      simplifyDebts: row.simplify_debts,
     };
   }
 
@@ -71,16 +69,14 @@ export class GroupService {
       : new Date();
     const members = groupData.members || [];
 
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const ownerId = this.getOwnerId();
-
-      realm.write(() => {
-        realm.create("Group", {
-          _id: new BSON.ObjectId(),
-          groupId,
+    if (this.isSupabaseAvailable()) {
+      const now = new Date().toISOString();
+      await this.getClient()
+        .from("groups")
+        .insert({
+          group_id: groupId,
           name: groupData.name,
-          description: groupData.description,
+          description: groupData.description || null,
           members: members.map((m) => ({
             id: m.id,
             name: m.name,
@@ -88,13 +84,12 @@ export class GroupService {
             phone: m.phone,
             avatar: m.avatar,
           })),
-          createdBy: userId,
-          createdAt,
-          updatedAt: new Date(),
-          simplifyDebts: groupData.simplifyDebts ?? true,
-          ownerId,
+          created_by: userId,
+          created_at: createdAt.toISOString(),
+          updated_at: now,
+          simplify_debts: groupData.simplifyDebts ?? true,
+          owner_id: this.getOwnerId(),
         });
-      });
     }
 
     const group: Group = {
@@ -111,31 +106,36 @@ export class GroupService {
   }
 
   async getGroupById(id: string): Promise<Group | null> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const found = realm
-        .objects<GroupSchema>("Group")
-        .filtered("groupId == $0", id)[0];
-      return found ? this.toGroup(found) : null;
+    if (this.isSupabaseAvailable()) {
+      const { data } = await this.getClient()
+        .from("groups")
+        .select("*")
+        .eq("group_id", id)
+        .single();
+      return data ? this.toGroup(data as GroupRow) : null;
     }
 
-    const data = await this.localStorage.getLocalData();
-    return data.groups.find((g) => g.id === id) || null;
+    const localData = await this.localStorage.getLocalData();
+    return localData.groups.find((g) => g.id === id) || null;
   }
 
   async getGroupsByUserId(userId: string): Promise<Group[]> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const results = realm
-        .objects<GroupSchema>("Group")
-        .filtered("ANY members.id == $0", userId);
-      return this.sortByCreatedAtDesc(
-        Array.from(results).map((r) => this.toGroup(r)),
-      );
+    if (this.isSupabaseAvailable()) {
+      // members is a jsonb array — filter in memory
+      const { data } = await this.getClient()
+        .from("groups")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (!data) return [];
+
+      return data
+        .map((row: any) => this.toGroup(row as GroupRow))
+        .filter((g) => g.members.some((m) => m.id === userId));
     }
 
-    const data = await this.localStorage.getLocalData();
-    const groups = data.groups.filter((group) =>
+    const localData = await this.localStorage.getLocalData();
+    const groups = localData.groups.filter((group) =>
       (group.members || []).some((member) => member.id === userId),
     );
     return this.sortByCreatedAtDesc(groups);
@@ -145,38 +145,39 @@ export class GroupService {
     id: string,
     groupData: Partial<Group>,
   ): Promise<Group | null> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const rg = realm
-        .objects<GroupSchema>("Group")
-        .filtered("groupId == $0", id)[0];
-      if (!rg) return null;
+    if (this.isSupabaseAvailable()) {
+      const updates: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (groupData.name !== undefined) updates.name = groupData.name;
+      if (groupData.description !== undefined)
+        updates.description = groupData.description;
+      if (groupData.simplifyDebts !== undefined)
+        updates.simplify_debts = groupData.simplifyDebts;
+      if (groupData.members !== undefined) {
+        updates.members = groupData.members.map((m) => ({
+          id: m.id,
+          name: m.name,
+          email: m.email,
+          phone: m.phone,
+          avatar: m.avatar,
+        }));
+      }
 
-      realm.write(() => {
-        if (groupData.name !== undefined) rg.name = groupData.name;
-        if (groupData.description !== undefined)
-          rg.description = groupData.description;
-        if (groupData.simplifyDebts !== undefined)
-          rg.simplifyDebts = groupData.simplifyDebts;
-        if (groupData.members !== undefined) {
-          rg.members.splice(0, rg.members.length);
-          groupData.members.forEach((m) => {
-            rg.members.push({
-              id: m.id,
-              name: m.name,
-              email: m.email,
-              phone: m.phone,
-              avatar: m.avatar,
-            } as any);
-          });
-        }
-        rg.updatedAt = new Date();
-      });
+      const { data, error } = await this.getClient()
+        .from("groups")
+        .update(updates)
+        .eq("group_id", id)
+        .select("*")
+        .single();
 
-      const updated = this.toGroup(rg);
-      // Mirror to local storage
-      const data = await this.localStorage.getLocalData();
-      const updatedGroups = data.groups.map((g) => (g.id === id ? updated : g));
+      if (error || !data) return null;
+
+      const updated = this.toGroup(data as GroupRow);
+      const localData = await this.localStorage.getLocalData();
+      const updatedGroups = localData.groups.map((g) =>
+        g.id === id ? updated : g,
+      );
       await this.localStorage.saveGroups(updatedGroups);
       return updated;
     }
@@ -220,14 +221,8 @@ export class GroupService {
   }
 
   async deleteGroup(id: string): Promise<boolean> {
-    if (this.isRealmAvailable()) {
-      const realm = this.getRealm();
-      const rg = realm
-        .objects<GroupSchema>("Group")
-        .filtered("groupId == $0", id)[0];
-      if (rg) {
-        realm.write(() => realm.delete(rg));
-      }
+    if (this.isSupabaseAvailable()) {
+      await this.getClient().from("groups").delete().eq("group_id", id);
     }
 
     const data = await this.localStorage.getLocalData();

@@ -1,36 +1,14 @@
-// MongoDB Atlas App Services Configuration
+// Supabase Configuration
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. Create an Atlas App Services app at https://cloud.mongodb.com
-// 2. Enable Email/Password authentication in App Services → Authentication
-// 3. Enable Device Sync (Flexible Sync) on your cluster
-//    - Add "ownerId" as a queryable field for all collections
-// 4. Replace the APP_ID below with your actual App ID
+// 1. Create a Supabase project at https://supabase.com
+// 2. Run the SQL schema (see SUPABASE_SETUP.sql) in the SQL Editor
+// 3. Enable Email/Password auth in Authentication → Providers
+// 4. Replace the values below with your project URL and anon key
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const ATLAS_CONFIG = {
-  // Replace with your Atlas App Services App ID (found in App Services → App Settings)
-  APP_ID: process.env.ATLAS_APP_ID || "splitwise-app-XXXXX",
-
-  // Base URL (only needed for custom deployments, leave empty for default)
-  BASE_URL: process.env.ATLAS_BASE_URL || undefined,
-
-  // Sync timeout in ms
-  SYNC_TIMEOUT: 10000,
-};
-
-// Legacy alias — some files still reference DATABASE_CONFIG
-export const DATABASE_CONFIG = {
-  MONGODB_URI: "",
-  DB_NAME: "splitwise",
-  COLLECTIONS: {
-    USERS: "User",
-    GROUPS: "Group",
-    EXPENSES: "Expense",
-    BALANCES: "Balance",
-    SETTLEMENTS: "Settlement",
-    FRIENDSHIPS: "Friendship",
-    INVITATIONS: "Invitation",
-  },
+export const SUPABASE_CONFIG = {
+  URL: process.env.SUPABASE_URL || "https://your-project.supabase.co",
+  ANON_KEY: process.env.SUPABASE_ANON_KEY || "your-anon-key",
 };
 
 // App Configuration

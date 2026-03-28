@@ -1,5 +1,4 @@
 import { useCallback } from "react";
-import Realm from "realm";
 import { AppState, AppAction } from "./types";
 import { User, Expense, Balance } from "../types";
 import { UserService } from "../services/userService";
@@ -51,16 +50,16 @@ export function useAuthActions(
                 const participantSplit = expense.splits?.find(
                   (s) => s.userId === participant.id,
                 );
-                if (participantSplit && participantSplit.amount > 0) {
+                const pAmount = participantSplit?.amount ?? 0;
+                if (pAmount > 0) {
                   balance.owedBy[participant.id] =
-                    (balance.owedBy[participant.id] || 0) +
-                    participantSplit.amount;
+                    (balance.owedBy[participant.id] || 0) + pAmount;
                 }
               }
             });
-          } else if (userParticipated && userSplit && userSplit.amount > 0) {
+          } else if (userParticipated && userSplit && (userSplit.amount ?? 0) > 0) {
             balance.owes[expense.paidBy.id] =
-              (balance.owes[expense.paidBy.id] || 0) + userSplit.amount;
+              (balance.owes[expense.paidBy.id] || 0) + (userSplit.amount ?? 0);
           }
         });
 
@@ -108,7 +107,7 @@ export function useAuthActions(
   );
 
   /**
-   * Login with email + password via Atlas App Services.
+   * Login with email + password via Supabase Auth.
    */
   const loginUser = useCallback(
     async (email: string, password?: string): Promise<void> => {
@@ -120,7 +119,6 @@ export function useAuthActions(
         await db.initialize();
 
         if (password) {
-          // Atlas email/password auth
           const user = await userService.loginWithPassword(email, password);
           dispatch({ type: "SET_CURRENT_USER", payload: user });
           dispatch({ type: "SET_OFFLINE_MODE", payload: false });
@@ -128,8 +126,7 @@ export function useAuthActions(
           await localStorage.setOfflineMode(false);
           await localStorage.saveUser(user);
         } else {
-          // Legacy flow: look up by email in local / Realm data
-          await db.connect();
+          // Lookup by email in Supabase
           const user = await userService.getUserByEmail(email);
           if (!user) throw new Error("User not found");
           dispatch({ type: "SET_CURRENT_USER", payload: user });
@@ -160,7 +157,7 @@ export function useAuthActions(
   );
 
   /**
-   * Sign up with email + password via Atlas App Services.
+   * Sign up with email + password via Supabase Auth.
    */
   const createUser = useCallback(
     async (
@@ -176,15 +173,12 @@ export function useAuthActions(
         let user: User;
 
         if (userData.password) {
-          // Full Atlas registration
           user = await userService.registerUser(
             userData.email,
             userData.password,
             userData.name,
           );
         } else {
-          // Legacy flow
-          await db.connect();
           user = await userService.createUser(userData);
         }
 
@@ -207,17 +201,16 @@ export function useAuthActions(
   );
 
   /**
-   * Continue in offline mode using a local Realm (no Atlas sync).
+   * Continue in offline mode using local storage only.
    */
   const continueOffline = useCallback(async (): Promise<void> => {
     try {
       dispatch({ type: "SET_LOADING", payload: true });
       dispatch({ type: "SET_ERROR", payload: null });
 
-      // Open a local-only Realm (no sync)
+      // Initialize Supabase client (optional — may fail offline)
       const db = DatabaseService.getInstance();
-      await db.initialize().catch(() => {}); // App init is optional for offline
-      await db.openLocalRealm();
+      await db.initialize().catch(() => {});
 
       const localData = await localStorage.getLocalData();
       let offlineUser = localData.currentUser;
@@ -291,7 +284,7 @@ export function useAuthActions(
   }, [localStorage, calculateOfflineBalance]);
 
   /**
-   * Logout — close Realm, clear local data, log out of Atlas.
+   * Logout — clear local data and sign out of Supabase.
    */
   const logout = useCallback(async (): Promise<void> => {
     try {
@@ -305,7 +298,7 @@ export function useAuthActions(
   }, [localStorage]);
 
   /**
-   * Sync offline data to Atlas by re-opening a synced Realm.
+   * Sync offline data to Supabase.
    */
   const syncData = useCallback(async (): Promise<void> => {
     if (!state.isOfflineMode || !state.currentUser) return;
@@ -315,16 +308,14 @@ export function useAuthActions(
       dispatch({ type: "SET_ERROR", payload: null });
 
       const db = DatabaseService.getInstance();
+      await db.initialize();
 
-      // If the user has Atlas credentials, switch to synced Realm
-      if (db.hasAuthenticatedUser()) {
-        await db.disconnect(); // Close local Realm
-        await db.openRealm(); // Open synced Realm
-      } else {
+      // User must be authenticated to sync
+      if (!db.hasAuthenticatedUser()) {
         throw new Error("Please log in with your account to sync data.");
       }
 
-      // Reload all data from the (now synced) Realm
+      // Reload all data from Supabase
       await Promise.all([
         loadUserGroups(),
         loadUserExpenses(),
@@ -336,9 +327,6 @@ export function useAuthActions(
       dispatch({ type: "SET_CONNECTED", payload: true });
       await localStorage.setOfflineMode(false);
       await localStorage.updateLastSyncDate();
-
-      // Wait for Atlas sync to finish uploading
-      await db.waitForSync().catch(() => {});
 
       dispatch({ type: "SET_LOADING", payload: false });
     } catch (error: any) {
