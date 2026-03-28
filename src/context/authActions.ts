@@ -50,16 +50,16 @@ export function useAuthActions(
                 const participantSplit = expense.splits?.find(
                   (s) => s.userId === participant.id,
                 );
-                if (participantSplit && participantSplit.amount > 0) {
+                const pAmount = participantSplit?.amount ?? 0;
+                if (pAmount > 0) {
                   balance.owedBy[participant.id] =
-                    (balance.owedBy[participant.id] || 0) +
-                    participantSplit.amount;
+                    (balance.owedBy[participant.id] || 0) + pAmount;
                 }
               }
             });
-          } else if (userParticipated && userSplit && userSplit.amount > 0) {
+          } else if (userParticipated && userSplit && (userSplit.amount ?? 0) > 0) {
             balance.owes[expense.paidBy.id] =
-              (balance.owes[expense.paidBy.id] || 0) + userSplit.amount;
+              (balance.owes[expense.paidBy.id] || 0) + (userSplit.amount ?? 0);
           }
         });
 
@@ -284,7 +284,7 @@ export function useAuthActions(
   }, [localStorage, calculateOfflineBalance]);
 
   /**
-   * Logout — close Realm, clear local data, log out of Atlas.
+   * Logout — clear local data and sign out of Supabase.
    */
   const logout = useCallback(async (): Promise<void> => {
     try {
