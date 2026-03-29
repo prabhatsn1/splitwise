@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createStackNavigator } from "@react-navigation/stack";
@@ -22,6 +22,7 @@ import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 
 // Import components
 import LoadingScreen from "./src/components/LoadingScreen";
+import AnimatedSplashScreen from "./src/components/AnimatedSplashScreen";
 
 // Import screens
 import LoginScreen from "./src/screens/LoginScreen";
@@ -41,6 +42,7 @@ import SettingsScreen from "./src/screens/SettingsScreen";
 import InviteFriendScreen from "./src/screens/InviteFriendScreen";
 
 // Import services
+import * as SplashScreen from "expo-splash-screen";
 import NotificationService from "./src/services/notificationService";
 import BiometricService from "./src/services/biometricService";
 import { RootStackParamList } from "./src/types";
@@ -317,7 +319,20 @@ const lockStyles = StyleSheet.create({
   },
 });
 
+SplashScreen.preventAutoHideAsync();
+
 export default function App() {
+  const [splashDone, setSplashDone] = useState(false);
+
+  const handleSplashFinish = useCallback(async () => {
+    await SplashScreen.hideAsync();
+    setSplashDone(true);
+  }, []);
+
+  if (!splashDone) {
+    return <AnimatedSplashScreen onFinish={handleSplashFinish} />;
+  }
+
   return (
     <ThemeProvider>
       <AppProvider>
