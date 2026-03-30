@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { View, Text, Dimensions, StyleSheet } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { ThemeColors } from "../context/ThemeContext";
 
 interface MonthlySpendingChartProps {
@@ -7,8 +7,9 @@ interface MonthlySpendingChartProps {
   colors: ThemeColors;
 }
 
-const { width: screenWidth } = Dimensions.get("window");
-const chartWidth = screenWidth - 32;
+const CHART_HEIGHT = 180;
+const Y_AXIS_WIDTH = 52;
+const GRID_LINES = 4; // number of horizontal reference lines
 
 export const MonthlySpendingChart: React.FC<MonthlySpendingChartProps> = ({
   data = [],
@@ -27,43 +28,90 @@ export const MonthlySpendingChart: React.FC<MonthlySpendingChartProps> = ({
     );
   }
 
-  const maxAmount = Math.max(...data.map((d) => d.amount));
-  const chartHeight = 200;
+  const maxAmount = Math.max(...data.map((d) => d.amount), 1);
+  // Round max up to a nice number for grid labels
+  const niceMax =
+    maxAmount <= 0 ? 100 : Math.ceil(maxAmount / GRID_LINES) * GRID_LINES;
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Monthly Spending</Text>
-      <View style={[styles.chart, { width: chartWidth, height: chartHeight }]}>
-        <View style={styles.yAxis}>
-          <Text style={styles.axisLabel}>₹{maxAmount.toFixed(0)}</Text>
-          <Text style={styles.axisLabel}>₹{(maxAmount / 2).toFixed(0)}</Text>
-          <Text style={styles.axisLabel}>₹0</Text>
-        </View>
-        <View style={styles.chartArea}>
-          {data.map((item, index) => {
-            const barHeight =
-              maxAmount > 0
-                ? (item.amount / maxAmount) * (chartHeight - 40)
-                : 0;
+
+      <View style={styles.chartRow}>
+        {/* Y-axis labels */}
+        <View style={[styles.yAxis, { height: CHART_HEIGHT }]}>
+          {Array.from({ length: GRID_LINES + 1 }).map((_, i) => {
+            const value = niceMax - (niceMax / GRID_LINES) * i;
             return (
-              <View key={index} style={styles.barContainer}>
-                <View style={styles.barArea}>
-                  <View
-                    style={[
-                      styles.bar,
-                      {
-                        height: barHeight,
-                        backgroundColor:
-                          item.amount > 0 ? colors.primary : colors.border,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.barLabel}>{item.month.split(" ")[0]}</Text>
-                <Text style={styles.barAmount}>₹{item.amount.toFixed(0)}</Text>
-              </View>
+              <Text key={i} style={styles.axisLabel}>
+                ₹{value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value.toFixed(0)}
+              </Text>
             );
           })}
+        </View>
+
+        {/* Chart area with grid + bars */}
+        <View style={styles.chartArea}>
+          {/* Grid lines (behind bars) */}
+          <View style={[styles.gridContainer, { height: CHART_HEIGHT }]}>
+            {Array.from({ length: GRID_LINES + 1 }).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.gridLine,
+                  i === GRID_LINES && styles.gridLineBottom,
+                ]}
+              />
+            ))}
+          </View>
+
+          {/* Bars */}
+          <View style={[styles.barsRow, { height: CHART_HEIGHT }]}>
+            {data.map((item, index) => {
+              const pct = niceMax > 0 ? item.amount / niceMax : 0;
+              const barH = Math.max(pct * CHART_HEIGHT, item.amount > 0 ? 3 : 0);
+              const isLast = index === data.length - 1;
+
+              return (
+                <View key={index} style={styles.barSlot}>
+                  <View style={styles.barWrapper}>
+                    <View
+                      style={[
+                        styles.bar,
+                        {
+                          height: barH,
+                          backgroundColor: isLast
+                            ? colors.warning
+                            : item.amount > 0
+                              ? colors.primary
+                              : colors.border,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+
+      {/* X-axis labels + amounts below chart */}
+      <View style={styles.xAxisRow}>
+        <View style={{ width: Y_AXIS_WIDTH }} />
+        <View style={styles.xLabels}>
+          {data.map((item, index) => (
+            <View key={index} style={styles.xLabelSlot}>
+              <Text style={styles.barLabel}>
+                {item.month.substring(0, 3)}
+              </Text>
+              <Text style={styles.barAmount}>
+                ₹{item.amount >= 1000
+                  ? `${(item.amount / 1000).toFixed(1)}k`
+                  : item.amount.toFixed(0)}
+              </Text>
+            </View>
+          ))}
         </View>
       </View>
     </View>
@@ -99,54 +147,81 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.textTertiary,
       textAlign: "center",
     },
-    chart: {
+    /* chart row: y-axis + chart area side-by-side */
+    chartRow: {
       flexDirection: "row",
-      alignItems: "flex-end",
     },
     yAxis: {
-      width: 60,
-      height: "100%",
+      width: Y_AXIS_WIDTH,
       justifyContent: "space-between",
       alignItems: "flex-end",
-      paddingRight: 8,
+      paddingRight: 6,
     },
     axisLabel: {
-      fontSize: 11,
+      fontSize: 10,
       color: colors.textTertiary,
+      lineHeight: 14,
     },
+    /* chart area is position-relative so grid + bars stack */
     chartArea: {
       flex: 1,
+      position: "relative",
+    },
+    gridContainer: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: "space-between",
+    },
+    gridLine: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.borderLight,
+    },
+    gridLineBottom: {
+      backgroundColor: colors.border,
+    },
+    barsRow: {
       flexDirection: "row",
       alignItems: "flex-end",
-      justifyContent: "space-between",
-      paddingHorizontal: 8,
+      paddingHorizontal: 4,
     },
-    barContainer: {
+    barSlot: {
       flex: 1,
       alignItems: "center",
-      marginHorizontal: 2,
+      paddingHorizontal: 3,
     },
-    barArea: {
-      flex: 1,
-      justifyContent: "flex-end",
+    barWrapper: {
       width: "100%",
-      minHeight: 160,
+      maxWidth: 28,
+      alignItems: "center",
     },
     bar: {
       width: "100%",
-      minHeight: 2,
       borderRadius: 4,
+      borderTopLeftRadius: 6,
+      borderTopRightRadius: 6,
+    },
+    /* x-axis row sits below the chart */
+    xAxisRow: {
+      flexDirection: "row",
+      marginTop: 6,
+    },
+    xLabels: {
+      flex: 1,
+      flexDirection: "row",
+      paddingHorizontal: 4,
+    },
+    xLabelSlot: {
+      flex: 1,
+      alignItems: "center",
     },
     barLabel: {
       fontSize: 10,
       color: colors.textTertiary,
-      marginTop: 4,
-      textAlign: "center",
+      fontWeight: "500",
     },
     barAmount: {
-      fontSize: 10,
+      fontSize: 9,
       color: colors.textSecondary,
       fontWeight: "600",
-      textAlign: "center",
+      marginTop: 1,
     },
   });
