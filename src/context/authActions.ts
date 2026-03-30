@@ -149,12 +149,14 @@ export function useAuthActions(
         dispatch({ type: "SET_LOADING", payload: false });
       } catch (error: any) {
         console.error("Failed to login user:", error);
+        dispatch({ type: "SET_LOADING", payload: false });
         dispatch({
           type: "SET_ERROR",
           payload:
             error.message ||
             "Login failed. Please check your credentials and try again.",
         });
+        throw error;
       }
     },
     [userService],
@@ -195,10 +197,12 @@ export function useAuthActions(
         dispatch({ type: "SET_LOADING", payload: false });
       } catch (error: any) {
         console.error("Failed to create user:", error);
+        dispatch({ type: "SET_LOADING", payload: false });
         dispatch({
           type: "SET_ERROR",
           payload: error.message || "Signup failed. Please try again.",
         });
+        throw error;
       }
     },
     [userService],
@@ -343,11 +347,172 @@ export function useAuthActions(
     }
   }, [state.isOfflineMode, state.currentUser]);
 
+  /**
+   * Login from offline mode — migrate local data to online account.
+   */
+  const loginFromOffline = useCallback(
+    async (email: string, password: string): Promise<void> => {
+      if (!state.isOfflineMode || !state.currentUser) {
+        throw new Error("Not in offline mode");
+      }
+
+      try {
+        dispatch({ type: "SET_LOADING", payload: true });
+        dispatch({ type: "SET_ERROR", payload: null });
+
+        const db = DatabaseService.getInstance();
+        await db.initialize();
+
+        // Login to online account
+        const user = await userService.loginWithPassword(email, password);
+
+        // Get offline data before switching
+        const offlineData = await localStorage.getLocalData();
+        const offlineExpenses = offlineData.expenses || [];
+        const offlineGroups = offlineData.groups || [];
+        const offlineFriends = offlineData.friends || [];
+
+        // Switch to online mode
+        dispatch({ type: "SET_CURRENT_USER", payload: user });
+        dispatch({ type: "SET_OFFLINE_MODE", payload: false });
+        dispatch({ type: "SET_CONNECTED", payload: true });
+        await localStorage.setOfflineMode(false);
+        await localStorage.saveUser(user);
+
+        // Load existing online data
+        await Promise.all([
+          loadUserGroups(),
+          loadUserExpenses(),
+          loadFriends(),
+        ]);
+
+        // Migrate offline data to online
+        const migratedGroups: string[] = [];
+        const migratedFriends: string[] = [];
+
+        // Migrate friends first
+        for (const friend of offlineFriends) {
+          if (friend.id.startsWith("offline_")) {
+            try {
+              const existingFriend = await userService.getUserByEmail(
+                friend.email,
+              );
+              if (existingFriend) {
+                migratedFriends.push(friend.id);
+                await localStorage.updateFriendReferences(
+                  friend.id,
+                  existingFriend.id,
+                );
+              } else {
+                const newFriend = await userService.createUser({
+                  name: friend.name,
+                  email: friend.email,
+                });
+                migratedFriends.push(friend.id);
+                await localStorage.updateFriendReferences(
+                  friend.id,
+                  newFriend.id,
+                );
+              }
+            } catch (error) {
+              console.error("Failed to migrate friend:", friend, error);
+            }
+          }
+        }
+
+        // Migrate groups
+        for (const group of offlineGroups) {
+          if (group.id.startsWith("offline_")) {
+            try {
+              const newGroup = await groupService.createGroup({
+                name: group.name,
+                description: group.description,
+                members: group.members,
+                createdBy: user.id,
+                createdAt: group.createdAt,
+                simplifyDebts: group.simplifyDebts,
+              });
+              migratedGroups.push(group.id);
+              await localStorage.updateGroupReferences(group.id, newGroup.id);
+            } catch (error) {
+              console.error("Failed to migrate group:", group, error);
+            }
+          }
+        }
+
+        // Migrate expenses
+        const updatedOfflineData = await localStorage.getLocalData();
+        for (const expense of offlineExpenses) {
+          if (expense.id.startsWith("offline_")) {
+            try {
+              await expenseService.createExpense({
+                description: expense.description,
+                amount: expense.amount,
+                paidBy: expense.paidBy,
+                splitBetween: expense.splitBetween,
+                splitType: expense.splitType,
+                splits: expense.splits,
+                category: expense.category,
+                date: expense.date,
+                groupId: expense.groupId,
+                receipt: expense.receipt,
+                currency: expense.currency,
+                tags: expense.tags,
+                location: expense.location,
+                isRecurring: expense.isRecurring,
+                recurringFrequency: expense.recurringFrequency,
+                recurringEndDate: expense.recurringEndDate,
+              });
+            } catch (error) {
+              console.error("Failed to migrate expense:", expense, error);
+            }
+          }
+        }
+
+        // Clear synced offline data
+        await localStorage.clearSyncedOfflineData();
+
+        // Reload all data
+        await Promise.all([
+          loadUserGroups(),
+          loadUserExpenses(),
+          loadFriends(),
+          calculateUserBalance(),
+        ]);
+
+        dispatch({ type: "SET_LOADING", payload: false });
+      } catch (error: any) {
+        console.error("Failed to login from offline:", error);
+        dispatch({ type: "SET_LOADING", payload: false });
+        dispatch({
+          type: "SET_ERROR",
+          payload:
+            error.message ||
+            "Failed to login. Please check your credentials and try again.",
+        });
+        throw error;
+      }
+    },
+    [
+      state.isOfflineMode,
+      state.currentUser,
+      userService,
+      groupService,
+      expenseService,
+      localStorage,
+      loadUserGroups,
+      loadUserExpenses,
+      loadFriends,
+      calculateUserBalance,
+    ],
+  );
+
   return {
     loginUser,
     createUser,
     continueOffline,
     logout,
     syncData,
+    loginFromOffline,
   };
 }

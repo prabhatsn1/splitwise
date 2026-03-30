@@ -5,6 +5,7 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  Modal,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -27,6 +28,12 @@ export default function LoginScreen() {
   >("checking");
   const [showRetryOptions, setShowRetryOptions] = useState(false);
   const [lastError, setLastError] = useState<NetworkError | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [errorModal, setErrorModal] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     checkConnectivity();
@@ -65,16 +72,22 @@ export default function LoginScreen() {
           ]);
           break;
         case "auth":
-          Alert.alert("Authentication Error", error.message);
+          setErrorModal({
+            title: "Invalid Credentials",
+            message: error.message,
+          });
           break;
         case "validation":
-          Alert.alert("Validation Error", error.message);
+          setErrorModal({ title: "Validation Error", message: error.message });
           break;
         default:
-          Alert.alert("Error", error.message);
+          setErrorModal({ title: "Error", message: error.message });
       }
     } else {
-      Alert.alert("Error", error.message || "An unexpected error occurred");
+      setErrorModal({
+        title: "Error",
+        message: error.message || "An unexpected error occurred",
+      });
     }
   };
 
@@ -88,9 +101,24 @@ export default function LoginScreen() {
     setLastError(null);
   };
 
+  const isValidEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+
+  const handleEmailChange = (val: string) => {
+    setEmail(val);
+    if (val && !isValidEmail(val)) {
+      setEmailError("Please enter a valid email address");
+    } else {
+      setEmailError("");
+    }
+  };
+
   const handleLogin = async () => {
     if (!email.trim()) {
       Alert.alert("Error", "Please enter your email");
+      return;
+    }
+    if (!isValidEmail(email.trim())) {
+      Alert.alert("Error", "Please enter a valid email address");
       return;
     }
     if (!password) {
@@ -114,6 +142,10 @@ export default function LoginScreen() {
   const handleSignup = async () => {
     if (!name.trim() || !email.trim()) {
       Alert.alert("Error", "Please enter both name and email");
+      return;
+    }
+    if (!isValidEmail(email.trim())) {
+      Alert.alert("Error", "Please enter a valid email address");
       return;
     }
     if (!password || password.length < 6) {
@@ -209,152 +241,192 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Ionicons name="wallet" size={64} color="#5bc5a7" />
+    <>
+      <Modal
+        visible={!!errorModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setErrorModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <View style={styles.modalIconWrap}>
+              <Ionicons name="alert-circle" size={40} color="#e74c3c" />
+            </View>
+            <Text style={styles.modalTitle}>{errorModal?.title}</Text>
+            <Text style={styles.modalMessage}>{errorModal?.message}</Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setErrorModal(null)}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.title}>Splitwise</Text>
-          <Text style={styles.subtitle}>Split expenses with friends</Text>
-          {renderConnectionStatus()}
         </View>
+      </Modal>
 
-        {renderRetryOptions()}
-
-        <View style={styles.form}>
-          <View style={styles.modeSelector}>
-            <TouchableOpacity
-              style={[
-                styles.modeButton,
-                mode === "login" && styles.activeModeButton,
-              ]}
-              onPress={() => setMode("login")}
-              disabled={loading}
-            >
-              <Text
-                style={[
-                  styles.modeButtonText,
-                  mode === "login" && styles.activeModeButtonText,
-                ]}
-              >
-                Login
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.modeButton,
-                mode === "signup" && styles.activeModeButton,
-              ]}
-              onPress={() => setMode("signup")}
-              disabled={loading}
-            >
-              <Text
-                style={[
-                  styles.modeButtonText,
-                  mode === "signup" && styles.activeModeButtonText,
-                ]}
-              >
-                Sign Up
-              </Text>
-            </TouchableOpacity>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <Ionicons name="wallet" size={64} color="#5bc5a7" />
+            </View>
+            <Text style={styles.title}>Splitwise</Text>
+            <Text style={styles.subtitle}>Split expenses with friends</Text>
+            {renderConnectionStatus()}
           </View>
 
-          {mode === "signup" && (
+          {renderRetryOptions()}
+
+          <View style={styles.form}>
+            <View style={styles.modeSelector}>
+              <TouchableOpacity
+                style={[
+                  styles.modeButton,
+                  mode === "login" && styles.activeModeButton,
+                ]}
+                onPress={() => setMode("login")}
+                disabled={loading}
+              >
+                <Text
+                  style={[
+                    styles.modeButtonText,
+                    mode === "login" && styles.activeModeButtonText,
+                  ]}
+                >
+                  Login
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modeButton,
+                  mode === "signup" && styles.activeModeButton,
+                ]}
+                onPress={() => setMode("signup")}
+                disabled={loading}
+              >
+                <Text
+                  style={[
+                    styles.modeButtonText,
+                    mode === "signup" && styles.activeModeButtonText,
+                  ]}
+                >
+                  Sign Up
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {mode === "signup" && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Enter your name"
+                  placeholderTextColor="#999"
+                  autoCapitalize="words"
+                  editable={!loading}
+                />
+              </View>
+            )}
+
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Name</Text>
+              <Text style={styles.label}>Email</Text>
               <TextInput
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-                placeholder="Enter your name"
+                style={[styles.input, !!emailError && styles.inputError]}
+                value={email}
+                onChangeText={handleEmailChange}
+                placeholder="Enter your email"
                 placeholderTextColor="#999"
-                autoCapitalize="words"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
                 editable={!loading}
               />
+              {!!emailError && (
+                <Text style={styles.errorText}>{emailError}</Text>
+              )}
             </View>
-          )}
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="Enter your email"
-              placeholderTextColor="#999"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!loading}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Enter your password"
-              placeholderTextColor="#999"
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!loading}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[
-              styles.authButton,
-              (loading || connectionStatus === "checking") &&
-                styles.disabledButton,
-            ]}
-            onPress={mode === "login" ? handleLogin : handleSignup}
-            disabled={loading || connectionStatus === "checking"}
-          >
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color="#fff" />
-                <Text style={styles.authButtonText}>
-                  {mode === "login" ? "Logging in..." : "Signing up..."}
-                </Text>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={styles.passwordInput}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Enter your password"
+                  placeholderTextColor="#999"
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!loading}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword((v) => !v)}
+                  style={styles.eyeIcon}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={20}
+                    color="#999"
+                  />
+                </TouchableOpacity>
               </View>
-            ) : (
-              <Text style={styles.authButtonText}>
-                {mode === "login" ? "Login" : "Sign Up"}
-              </Text>
-            )}
-          </TouchableOpacity>
+            </View>
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.dividerLine} />
+            <TouchableOpacity
+              style={[
+                styles.authButton,
+                (loading || connectionStatus === "checking") &&
+                  styles.disabledButton,
+              ]}
+              onPress={mode === "login" ? handleLogin : handleSignup}
+              disabled={loading || connectionStatus === "checking"}
+            >
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#fff" />
+                  <Text style={styles.authButtonText}>
+                    {mode === "login" ? "Logging in..." : "Signing up..."}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.authButtonText}>
+                  {mode === "login" ? "Login" : "Sign Up"}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <TouchableOpacity
+              style={styles.offlineButton}
+              onPress={handleContinueOffline}
+              disabled={loading}
+            >
+              <Ionicons name="phone-portrait-outline" size={20} color="#666" />
+              <Text style={styles.offlineButtonText}>Continue Offline</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.offlineNote}>
+              Your data will be saved locally and can be synced later when you
+              login.{" "}
+              {connectionStatus === "offline" &&
+                "Perfect for when you're offline!"}
+            </Text>
           </View>
-
-          <TouchableOpacity
-            style={styles.offlineButton}
-            onPress={handleContinueOffline}
-            disabled={loading}
-          >
-            <Ionicons name="phone-portrait-outline" size={20} color="#666" />
-            <Text style={styles.offlineButtonText}>Continue Offline</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.offlineNote}>
-            Your data will be saved locally and can be synced later when you
-            login.{" "}
-            {connectionStatus === "offline" &&
-              "Perfect for when you're offline!"}
-          </Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </>
   );
 }
 
@@ -547,6 +619,31 @@ const styles = StyleSheet.create({
     color: "#333",
     backgroundColor: "#fff",
   },
+  inputError: {
+    borderColor: "#e74c3c",
+  },
+  errorText: {
+    fontSize: 12,
+    color: "#e74c3c",
+    marginTop: 4,
+  },
+  passwordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    backgroundColor: "#fff",
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 12,
+    fontSize: 16,
+    color: "#333",
+  },
+  eyeIcon: {
+    paddingHorizontal: 12,
+  },
   authButton: {
     backgroundColor: "#5bc5a7",
     borderRadius: 8,
@@ -598,5 +695,52 @@ const styles = StyleSheet.create({
     color: "#999",
     textAlign: "center",
     lineHeight: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modalBox: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    width: "100%",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalIconWrap: {
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#333",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  modalButton: {
+    backgroundColor: "#e74c3c",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+  },
+  modalButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

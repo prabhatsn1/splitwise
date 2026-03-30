@@ -81,6 +81,7 @@ export interface AppContextType {
   continueOffline: () => Promise<void>;
   logout: () => Promise<void>;
   syncData: () => Promise<void>;
+  loginFromOffline: (email: string, password: string) => Promise<void>;
   // Group actions
   loadUserGroups: () => Promise<void>;
   createGroup: (groupData: Omit<Group, "id">) => Promise<void>;

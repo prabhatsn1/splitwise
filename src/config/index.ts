@@ -7,8 +7,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const SUPABASE_CONFIG = {
-  URL: process.env.SUPABASE_URL || "https://your-project.supabase.co",
-  ANON_KEY: process.env.SUPABASE_ANON_KEY || "your-anon-key",
+  URL:
+    process.env.EXPO_PUBLIC_SUPABASE_URL ||
+    "https://hqnjgllutcdpjtltuqqq.supabase.co",
+  ANON_KEY:
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+    "sb_publishable_pvrmR0aLdS-iUZkTjBFjPg_Uc6wXtrR",
 };
 
 // App Configuration

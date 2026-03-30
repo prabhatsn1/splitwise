@@ -26,7 +26,7 @@ import { exportToCSV, exportToPDF } from "../services/exportService";
 
 export default function AccountScreen() {
   const navigation = useNavigation<AccountNavProp>();
-  const { state, logout, syncData, updateProfile } = useApp();
+  const { state, logout, syncData, updateProfile, loginFromOffline } = useApp();
   const { colors, isDark, themeMode, setThemeMode } = useTheme();
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
@@ -38,6 +38,13 @@ export default function AccountScreen() {
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  // Login modal state
+  const [loginModalVisible, setLoginModalVisible] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -203,6 +210,45 @@ export default function AccountScreen() {
         },
       ],
     );
+  };
+
+  const handleLoginFromOffline = () => {
+    setLoginModalVisible(true);
+  };
+
+  const handleSubmitLogin = async () => {
+    const trimmedEmail = loginEmail.trim();
+    const trimmedPassword = loginPassword.trim();
+
+    if (!trimmedEmail || !trimmedPassword) {
+      Alert.alert("Validation Error", "Please enter both email and password.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      Alert.alert("Validation Error", "Please enter a valid email address.");
+      return;
+    }
+
+    setIsLoggingIn(true);
+    try {
+      await loginFromOffline(trimmedEmail, trimmedPassword);
+      setLoginModalVisible(false);
+      setLoginEmail("");
+      setLoginPassword("");
+      Alert.alert(
+        "Success",
+        "Logged in successfully! Your offline data has been synced to your online account.",
+      );
+    } catch (error: any) {
+      Alert.alert(
+        "Login Failed",
+        error.message || "Failed to login. Please check your credentials.",
+      );
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
   return (
@@ -515,6 +561,45 @@ export default function AccountScreen() {
             ))}
           </View>
         </View>
+
+        {state.isOfflineMode && (
+          <TouchableOpacity
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              padding: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.borderLight,
+            }}
+            onPress={handleLoginFromOffline}
+          >
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: colors.primaryLight,
+                justifyContent: "center",
+                alignItems: "center",
+                marginRight: 16,
+              }}
+            >
+              <Ionicons
+                name="log-in-outline"
+                size={20}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={{ flex: 1, fontSize: 16, color: colors.textPrimary }}>
+              Login to Online Account
+            </Text>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={colors.textTertiary}
+            />
+          </TouchableOpacity>
+        )}
 
         {state.isOfflineMode && (
           <TouchableOpacity
@@ -956,6 +1041,183 @@ export default function AccountScreen() {
                     style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}
                   >
                     Save Changes
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Login Modal */}
+      <Modal
+        visible={loginModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setLoginModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "flex-end",
+              backgroundColor: "rgba(0,0,0,0.45)",
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                padding: 24,
+                paddingBottom: 40,
+              }}
+            >
+              {/* Header */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 24,
+                }}
+              >
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 20,
+                    fontWeight: "bold",
+                    color: colors.textPrimary,
+                  }}
+                >
+                  Login to Online Account
+                </Text>
+                <TouchableOpacity onPress={() => setLoginModalVisible(false)}>
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: colors.textSecondary,
+                  marginBottom: 24,
+                  lineHeight: 20,
+                }}
+              >
+                Login with your existing account to sync your offline data to
+                the cloud. All your expenses and groups will be preserved.
+              </Text>
+
+              {/* Email field */}
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: colors.textSecondary,
+                  marginBottom: 6,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Email Address
+              </Text>
+              <TextInput
+                value={loginEmail}
+                onChangeText={setLoginEmail}
+                placeholder="Enter your email"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                  fontSize: 16,
+                  color: colors.textPrimary,
+                  backgroundColor: colors.backgroundDark,
+                  marginBottom: 16,
+                }}
+              />
+
+              {/* Password field */}
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: colors.textSecondary,
+                  marginBottom: 6,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Password
+              </Text>
+              <View style={{ position: "relative", marginBottom: 24 }}>
+                <TextInput
+                  value={loginPassword}
+                  onChangeText={setLoginPassword}
+                  placeholder="Enter your password"
+                  placeholderTextColor={colors.textTertiary}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 10,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    paddingRight: 50,
+                    fontSize: 16,
+                    color: colors.textPrimary,
+                    backgroundColor: colors.backgroundDark,
+                  }}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: "absolute",
+                    right: 14,
+                    top: 12,
+                    padding: 4,
+                  }}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={22}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Login button */}
+              <TouchableOpacity
+                onPress={handleSubmitLogin}
+                disabled={isLoggingIn}
+                style={{
+                  backgroundColor: colors.primary,
+                  borderRadius: 12,
+                  paddingVertical: 14,
+                  alignItems: "center",
+                }}
+              >
+                {isLoggingIn ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text
+                    style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}
+                  >
+                    Login & Sync Data
                   </Text>
                 )}
               </TouchableOpacity>
