@@ -44,7 +44,10 @@ export const MonthlySpendingChart: React.FC<MonthlySpendingChartProps> = ({
             const value = niceMax - (niceMax / GRID_LINES) * i;
             return (
               <Text key={i} style={styles.axisLabel}>
-                ₹{value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value.toFixed(0)}
+                ₹
+                {value >= 1000
+                  ? `${(value / 1000).toFixed(1)}k`
+                  : value.toFixed(0)}
               </Text>
             );
           })}
@@ -69,7 +72,10 @@ export const MonthlySpendingChart: React.FC<MonthlySpendingChartProps> = ({
           <View style={[styles.barsRow, { height: CHART_HEIGHT }]}>
             {data.map((item, index) => {
               const pct = niceMax > 0 ? item.amount / niceMax : 0;
-              const barH = Math.max(pct * CHART_HEIGHT, item.amount > 0 ? 3 : 0);
+              const barH = Math.max(
+                pct * CHART_HEIGHT,
+                item.amount > 0 ? 3 : 0,
+              );
               const isLast = index === data.length - 1;
 
               return (
@@ -102,11 +108,10 @@ export const MonthlySpendingChart: React.FC<MonthlySpendingChartProps> = ({
         <View style={styles.xLabels}>
           {data.map((item, index) => (
             <View key={index} style={styles.xLabelSlot}>
-              <Text style={styles.barLabel}>
-                {item.month.substring(0, 3)}
-              </Text>
+              <Text style={styles.barLabel}>{item.month.substring(0, 3)}</Text>
               <Text style={styles.barAmount}>
-                ₹{item.amount >= 1000
+                ₹
+                {item.amount >= 1000
                   ? `${(item.amount / 1000).toFixed(1)}k`
                   : item.amount.toFixed(0)}
               </Text>

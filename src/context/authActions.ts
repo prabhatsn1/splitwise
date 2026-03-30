@@ -57,7 +57,11 @@ export function useAuthActions(
                 }
               }
             });
-          } else if (userParticipated && userSplit && (userSplit.amount ?? 0) > 0) {
+          } else if (
+            userParticipated &&
+            userSplit &&
+            (userSplit.amount ?? 0) > 0
+          ) {
             balance.owes[expense.paidBy.id] =
               (balance.owes[expense.paidBy.id] || 0) + (userSplit.amount ?? 0);
           }

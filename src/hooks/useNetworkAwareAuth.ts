@@ -59,7 +59,7 @@ export function useNetworkAwareAuth(): AuthState & AuthActions {
             [
               { text: "Retry", onPress: () => retry() },
               { text: "Stay Offline", style: "cancel" },
-            ]
+            ],
           );
         }
 
@@ -82,7 +82,7 @@ export function useNetworkAwareAuth(): AuthState & AuthActions {
           "general",
           error.message || "An unexpected error occurred",
           true,
-          actionType
+          actionType,
         );
       }
 
@@ -106,7 +106,7 @@ export function useNetworkAwareAuth(): AuthState & AuthActions {
             { text: "Go Offline", onPress: goOffline },
             { text: "Try Again", onPress: retry },
             { text: "Cancel", style: "cancel" },
-          ]
+          ],
         );
       } else if (networkError.isRetryable && authState.retryCount < 3) {
         Alert.alert("Connection Error", networkError.message, [
@@ -118,7 +118,7 @@ export function useNetworkAwareAuth(): AuthState & AuthActions {
         Alert.alert("Error", networkError.message);
       }
     },
-    [authState.networkStatus.isConnected, authState.retryCount]
+    [authState.networkStatus.isConnected, authState.retryCount],
   );
 
   const login = useCallback(
@@ -140,7 +140,7 @@ export function useNetworkAwareAuth(): AuthState & AuthActions {
         handleAuthError(error, "login");
       }
     },
-    [loginUser, handleAuthError]
+    [loginUser, handleAuthError],
   );
 
   const signup = useCallback(
@@ -162,7 +162,7 @@ export function useNetworkAwareAuth(): AuthState & AuthActions {
         handleAuthError(error, "signup");
       }
     },
-    [createUser, handleAuthError]
+    [createUser, handleAuthError],
   );
 
   const retry = useCallback(async () => {

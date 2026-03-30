@@ -41,7 +41,7 @@ export default function CreateGroupScreen() {
     setSelectedMembers((prev) =>
       prev.includes(userId)
         ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
+        : [...prev, userId],
     );
   };
 
@@ -57,7 +57,7 @@ export default function CreateGroupScreen() {
     }
 
     const groupMembers = availableMembers.filter((member) =>
-      selectedMembers.includes(member.id)
+      selectedMembers.includes(member.id),
     );
 
     const newGroupData: Omit<Group, "id"> = {

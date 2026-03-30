@@ -32,7 +32,7 @@ class LocalStorageService {
       const updatedData = { ...existingData, ...data };
       await AsyncStorage.setItem(
         this.STORAGE_KEYS.USER_DATA,
-        JSON.stringify(updatedData)
+        JSON.stringify(updatedData),
       );
     } catch (error) {
       console.error("Error saving local data:", error);
@@ -65,7 +65,7 @@ class LocalStorageService {
     try {
       await AsyncStorage.setItem(
         this.STORAGE_KEYS.OFFLINE_MODE,
-        JSON.stringify(isOffline)
+        JSON.stringify(isOffline),
       );
     } catch (error) {
       console.error("Error setting offline mode:", error);
@@ -159,7 +159,7 @@ class LocalStorageService {
   // Update references to friends when syncing from offline to online
   async updateFriendReferences(
     oldFriendId: string,
-    newFriendId: string
+    newFriendId: string,
   ): Promise<void> {
     try {
       const data = await this.getLocalData();
@@ -168,7 +168,7 @@ class LocalStorageService {
       const updatedGroups = data.groups.map((group) => ({
         ...group,
         members: group.members.map((member) =>
-          member.id === oldFriendId ? { ...member, id: newFriendId } : member
+          member.id === oldFriendId ? { ...member, id: newFriendId } : member,
         ),
       }));
 
@@ -180,19 +180,19 @@ class LocalStorageService {
             ? { ...expense.paidBy, id: newFriendId }
             : expense.paidBy,
         splitBetween: expense.splitBetween.map((user) =>
-          user.id === oldFriendId ? { ...user, id: newFriendId } : user
+          user.id === oldFriendId ? { ...user, id: newFriendId } : user,
         ),
         splits:
           expense.splits?.map((split) =>
             split.userId === oldFriendId
               ? { ...split, userId: newFriendId }
-              : split
+              : split,
           ) || [],
       }));
 
       // Update friend in friends list
       const updatedFriends = data.friends.map((friend) =>
-        friend.id === oldFriendId ? { ...friend, id: newFriendId } : friend
+        friend.id === oldFriendId ? { ...friend, id: newFriendId } : friend,
       );
 
       await this.saveLocalData({
@@ -209,7 +209,7 @@ class LocalStorageService {
   // Update references to groups when syncing from offline to online
   async updateGroupReferences(
     oldGroupId: string,
-    newGroupId: string
+    newGroupId: string,
   ): Promise<void> {
     try {
       const data = await this.getLocalData();
@@ -222,7 +222,7 @@ class LocalStorageService {
 
       // Update group in groups list
       const updatedGroups = data.groups.map((group) =>
-        group.id === oldGroupId ? { ...group, id: newGroupId } : group
+        group.id === oldGroupId ? { ...group, id: newGroupId } : group,
       );
 
       await this.saveLocalData({
@@ -242,13 +242,13 @@ class LocalStorageService {
 
       // Remove synced offline items (those that no longer have offline_ prefix)
       const remainingGroups = data.groups.filter((group) =>
-        group.id.startsWith("offline_")
+        group.id.startsWith("offline_"),
       );
       const remainingExpenses = data.expenses.filter((expense) =>
-        expense.id.startsWith("offline_")
+        expense.id.startsWith("offline_"),
       );
       const remainingFriends = data.friends.filter((friend) =>
-        friend.id.startsWith("offline_")
+        friend.id.startsWith("offline_"),
       );
 
       await this.saveLocalData({

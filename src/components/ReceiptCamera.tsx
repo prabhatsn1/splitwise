@@ -84,7 +84,7 @@ export default function ReceiptCamera({
     if (permissionResult.granted === false) {
       Alert.alert(
         "Permission required",
-        "Permission to access camera roll is required!"
+        "Permission to access camera roll is required!",
       );
       return;
     }
@@ -104,7 +104,7 @@ export default function ReceiptCamera({
 
   const toggleFlash = () => {
     setFlashMode(
-      flashMode === "off" ? "on" : flashMode === "on" ? "auto" : "off"
+      flashMode === "off" ? "on" : flashMode === "on" ? "auto" : "off",
     );
   };
 
