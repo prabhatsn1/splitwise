@@ -5,6 +5,9 @@ import {
   YearOverYearData,
   GroupAnalytics,
   SimplifiedDebt,
+  WeeklySpendingData,
+  ExpenseFrequencyData,
+  BudgetComparisonData,
 } from "../types";
 
 export class AnalyticsService {
@@ -477,5 +480,127 @@ export class AnalyticsService {
     }
 
     return result;
+  }
+
+  // ─── Weekly spending ────────────────────────────────────────────────
+
+  static calculateWeeklySpending(
+    expenses: Expense[],
+    currentUserId: string,
+  ): WeeklySpendingData[] {
+    const now = new Date();
+    const weeks: WeeklySpendingData[] = [];
+
+    // Last 8 weeks
+    for (let i = 7; i >= 0; i--) {
+      const weekEnd = new Date(now);
+      weekEnd.setDate(weekEnd.getDate() - i * 7);
+      const weekStart = new Date(weekEnd);
+      weekStart.setDate(weekStart.getDate() - 6);
+
+      // Set to start/end of day
+      weekStart.setHours(0, 0, 0, 0);
+      weekEnd.setHours(23, 59, 59, 999);
+
+      const weekExpenses = expenses.filter((e) => {
+        const d = new Date(e.date);
+        return (
+          d >= weekStart &&
+          d <= weekEnd &&
+          (e.paidBy.id === currentUserId ||
+            e.splitBetween.some((u) => u.id === currentUserId))
+        );
+      });
+
+      const amount = weekExpenses.reduce((sum, e) => {
+        const split = e.splits.find((s) => s.userId === currentUserId);
+        return sum + (split?.amount || 0);
+      }, 0);
+
+      weeks.push({
+        week: `W${8 - i}`,
+        amount,
+        startDate: weekStart.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        }),
+        endDate: weekEnd.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        }),
+      });
+    }
+
+    return weeks;
+  }
+
+  // ─── Expense frequency by day of week ───────────────────────────────
+
+  static calculateExpenseFrequency(
+    expenses: Expense[],
+    currentUserId: string,
+  ): ExpenseFrequencyData[] {
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dayMap = new Map<number, { count: number; totalAmount: number }>();
+
+    for (let i = 0; i < 7; i++) {
+      dayMap.set(i, { count: 0, totalAmount: 0 });
+    }
+
+    const userExpenses = expenses.filter(
+      (e) =>
+        e.paidBy.id === currentUserId ||
+        e.splitBetween.some((u) => u.id === currentUserId),
+    );
+
+    userExpenses.forEach((expense) => {
+      const dayOfWeek = new Date(expense.date).getDay();
+      const existing = dayMap.get(dayOfWeek)!;
+      const split = expense.splits.find((s) => s.userId === currentUserId);
+      existing.count += 1;
+      existing.totalAmount += split?.amount || 0;
+    });
+
+    return dayNames.map((day, index) => ({
+      day,
+      count: dayMap.get(index)!.count,
+      totalAmount: dayMap.get(index)!.totalAmount,
+    }));
+  }
+
+  // ─── Budget vs Actual comparison ────────────────────────────────────
+
+  static calculateBudgetComparison(
+    expenses: Expense[],
+    currentUserId: string,
+    budgets: Record<string, number>,
+  ): BudgetComparisonData[] {
+    // Get current month's expenses
+    const now = new Date();
+    const currentMonthExpenses = expenses.filter((e) => {
+      const d = new Date(e.date);
+      return (
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear() &&
+        (e.paidBy.id === currentUserId ||
+          e.splitBetween.some((u) => u.id === currentUserId))
+      );
+    });
+
+    const categoryActuals = new Map<string, number>();
+    currentMonthExpenses.forEach((e) => {
+      const split = e.splits.find((s) => s.userId === currentUserId);
+      const amount = split?.amount || 0;
+      categoryActuals.set(
+        e.category,
+        (categoryActuals.get(e.category) || 0) + amount,
+      );
+    });
+
+    return Object.entries(budgets).map(([category, budget]) => ({
+      category,
+      budget,
+      actual: categoryActuals.get(category) || 0,
+    }));
   }
 }

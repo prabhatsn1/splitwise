@@ -5,6 +5,8 @@
  * Get a free key at https://ocr.space/ocrapi/freekey
  */
 
+import { ExpenseItem } from "../types";
+
 const OCR_API_URL = "https://api.ocr.space/parse/image";
 const OCR_API_KEY = "K85403530488957"; // Free tier demo key
 
@@ -13,6 +15,8 @@ export interface OcrResult {
   description: string;
   rawText: string;
   confidence: number;
+  items: ExpenseItem[];
+  detectedCurrency?: string;
 }
 
 /**
@@ -62,6 +66,7 @@ export async function parseReceipt(imageBase64: string): Promise<OcrResult> {
         description: "",
         rawText: data.ErrorMessage?.[0] ?? "",
         confidence: 0,
+        items: [],
       };
     }
 
@@ -72,11 +77,26 @@ export async function parseReceipt(imageBase64: string): Promise<OcrResult> {
 
     const amount = extractAmount(rawText);
     const description = extractDescription(rawText);
+    const items = extractLineItems(rawText);
+    const detectedCurrency = detectCurrency(rawText);
 
-    return { amount, description, rawText, confidence };
+    return {
+      amount,
+      description,
+      rawText,
+      confidence,
+      items,
+      detectedCurrency,
+    };
   } catch (error) {
     console.warn("[OCR] parseReceipt error:", error);
-    return { amount: null, description: "", rawText: "", confidence: 0 };
+    return {
+      amount: null,
+      description: "",
+      rawText: "",
+      confidence: 0,
+      items: [],
+    };
   }
 }
 
@@ -139,4 +159,94 @@ function extractDescription(text: string): string {
   }
 
   return "";
+}
+
+/**
+ * Extract individual line items from OCR text.
+ * Looks for patterns like "Item Name    $12.99" or "2x Item Name  24.00"
+ */
+function extractLineItems(text: string): ExpenseItem[] {
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const items: ExpenseItem[] = [];
+  let itemId = 1;
+
+  // Skip lines containing totals, taxes, subtotals, etc.
+  const skipKeywords =
+    /\b(total|subtotal|sub-total|tax|vat|gst|tip|gratuity|discount|change|cash|card|visa|mastercard|payment|balance|due|tender|receipt|invoice|date|time|thank|welcome)\b/i;
+
+  // Pattern: "quantity x name ... price" or "name ... price"
+  const itemPatterns = [
+    // "2 x Item Name    12.99" or "2x Item   12.99"
+    /^(\d+)\s*[xX×]\s+(.+?)\s{2,}[₹$€£¥]?\s*([\d,]+\.?\d*)\s*$/,
+    // "Item Name    12.99" (name followed by spaces then price)
+    /^([A-Za-z][\w\s&'-]{1,40}?)\s{2,}[₹$€£¥]?\s*([\d,]+\.\d{2})\s*$/,
+    // "Item Name .... 12.99" (with dots or dashes as separator)
+    /^([A-Za-z][\w\s&'-]{1,40}?)\s*[.·\-]{2,}\s*[₹$€£¥]?\s*([\d,]+\.\d{2})\s*$/,
+  ];
+
+  for (const line of lines) {
+    if (skipKeywords.test(line)) continue;
+
+    for (const pattern of itemPatterns) {
+      const match = line.match(pattern);
+      if (match) {
+        if (match.length === 4) {
+          // quantity x name price
+          const qty = parseInt(match[1], 10);
+          const name = match[2].trim();
+          const price = parseFloat(match[3].replace(/,/g, ""));
+          if (!isNaN(price) && price > 0 && name.length > 1) {
+            items.push({
+              id: `item_${itemId++}`,
+              name,
+              price,
+              quantity: qty,
+            });
+          }
+        } else if (match.length === 3) {
+          // name price
+          const name = match[1].trim();
+          const price = parseFloat(match[2].replace(/,/g, ""));
+          if (!isNaN(price) && price > 0 && name.length > 1) {
+            items.push({
+              id: `item_${itemId++}`,
+              name,
+              price,
+              quantity: 1,
+            });
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  return items;
+}
+
+/**
+ * Detect currency symbol from OCR text.
+ */
+function detectCurrency(text: string): string | undefined {
+  const currencyPatterns: [RegExp, string][] = [
+    [/₹/, "INR"],
+    [/\$/, "USD"],
+    [/€/, "EUR"],
+    [/£/, "GBP"],
+    [/¥/, "JPY"],
+    [/฿/, "THB"],
+    [/د\.إ/, "AED"],
+    [/S\$/, "SGD"],
+    [/A\$/, "AUD"],
+    [/C\$/, "CAD"],
+  ];
+
+  for (const [pattern, code] of currencyPatterns) {
+    if (pattern.test(text)) return code;
+  }
+  return undefined;
 }

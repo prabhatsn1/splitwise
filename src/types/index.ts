@@ -39,6 +39,23 @@ export interface AdvancedSplit {
   shares?: number; // For share-based splits
 }
 
+export interface ExpenseItem {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  assignedTo?: string[]; // user IDs for item-level splitting
+}
+
+export interface DefaultSplitTemplate {
+  id: string;
+  name: string;
+  groupId?: string;
+  splitType: SplitType;
+  splits: AdvancedSplit[];
+  createdAt: Date;
+}
+
 export interface Location {
   latitude: number;
   longitude: number;
@@ -73,6 +90,7 @@ export interface Expense {
   location?: Location;
   recurring?: RecurringConfig;
   tags: string[];
+  items?: ExpenseItem[]; // Line-item breakdown
 }
 
 // Legacy interface for backward compatibility
@@ -121,6 +139,28 @@ export interface YearOverYearData {
   month: string; // "Jan", "Feb", etc.
   currentYear: number;
   previousYear: number;
+}
+
+// Weekly spending data
+export interface WeeklySpendingData {
+  week: string; // "Week 1", "Week 2", etc.
+  amount: number;
+  startDate: string;
+  endDate: string;
+}
+
+// Expense frequency data (by day of week)
+export interface ExpenseFrequencyData {
+  day: string; // "Mon", "Tue", etc.
+  count: number;
+  totalAmount: number;
+}
+
+// Budget vs Actual comparison data
+export interface BudgetComparisonData {
+  category: string;
+  budget: number;
+  actual: number;
 }
 
 // Per-group analytics

@@ -1,19 +1,36 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { ScrollView, View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
-import { ExpenseAnalytics, YearOverYearData } from "../types";
+import { useTheme } from "../context/ThemeContext";
+import {
+  ExpenseAnalytics,
+  YearOverYearData,
+  WeeklySpendingData,
+  ExpenseFrequencyData,
+  BudgetComparisonData,
+} from "../types";
 import { AnalyticsService } from "../services/analyticsService";
 import { MonthlySpendingChart } from "../components/MonthlySpendingChart";
 import { CategoryPieChart } from "../components/CategoryPieChart";
 import { SpendingTrendsCard } from "../components/SpendingTrendsCard";
 import { YearOverYearChart } from "../components/YearOverYearChart";
-import { styles } from "../styles/screens/AnalyticsScreen.styles";
+import { WeeklySpendingChart } from "../components/WeeklySpendingChart";
+import { ExpenseFrequencyChart } from "../components/ExpenseFrequencyChart";
+import { BudgetComparisonChart } from "../components/BudgetComparisonChart";
+import { createStyles } from "../styles/screens/AnalyticsScreen.styles";
 
 export default function AnalyticsScreen() {
   const { state } = useApp();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [analytics, setAnalytics] = useState<ExpenseAnalytics | undefined>();
   const [yoyData, setYoyData] = useState<YearOverYearData[]>([]);
+  const [weeklyData, setWeeklyData] = useState<WeeklySpendingData[]>([]);
+  const [frequencyData, setFrequencyData] = useState<ExpenseFrequencyData[]>(
+    [],
+  );
+  const [budgetData, setBudgetData] = useState<BudgetComparisonData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,6 +56,35 @@ export default function AnalyticsScreen() {
         state.currentUser.id,
       );
       setYoyData(yearOverYear);
+
+      const weekly = AnalyticsService.calculateWeeklySpending(
+        state.expenses,
+        state.currentUser.id,
+      );
+      setWeeklyData(weekly);
+
+      const frequency = AnalyticsService.calculateExpenseFrequency(
+        state.expenses,
+        state.currentUser.id,
+      );
+      setFrequencyData(frequency);
+
+      // Default budgets per category — in a full app these would come from Settings
+      const defaultBudgets: Record<string, number> = {
+        Food: 5000,
+        Transport: 2000,
+        Entertainment: 3000,
+        Bills: 5000,
+        Shopping: 4000,
+        Travel: 5000,
+        Other: 2000,
+      };
+      const budget = AnalyticsService.calculateBudgetComparison(
+        state.expenses,
+        state.currentUser.id,
+        defaultBudgets,
+      );
+      setBudgetData(budget);
     } catch (error) {
       console.error("Failed to calculate analytics:", error);
     } finally {
@@ -69,7 +115,7 @@ export default function AnalyticsScreen() {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Summary Cards */}
-      <View style={styles.summaryContainer}>
+      <View style={styles.summaryRow}>
         <View style={styles.summaryCard}>
           <Ionicons name="receipt-outline" size={24} color="#5bc5a7" />
           <Text style={styles.summaryValue}>
@@ -88,10 +134,13 @@ export default function AnalyticsScreen() {
       </View>
 
       {/* Charts */}
-      <MonthlySpendingChart data={analytics.monthlySpending} />
-      <YearOverYearChart data={yoyData} />
-      <CategoryPieChart data={analytics.categoryBreakdown} />
-      <SpendingTrendsCard trends={analytics.spendingTrends} />
+      <MonthlySpendingChart data={analytics.monthlySpending} colors={colors} />
+      <WeeklySpendingChart data={weeklyData} />
+      <YearOverYearChart data={yoyData} colors={colors} />
+      <CategoryPieChart data={analytics.categoryBreakdown} colors={colors} />
+      <BudgetComparisonChart data={budgetData} />
+      <ExpenseFrequencyChart data={frequencyData} />
+      <SpendingTrendsCard trends={analytics.spendingTrends} colors={colors} />
 
       {/* Friend Spending Ranking */}
       {analytics.friendSpendingRanking.length > 0 && (

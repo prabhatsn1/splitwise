@@ -111,3 +111,43 @@ export function formatCurrency(
 export function getCurrency(code: string): Currency | undefined {
   return CURRENCIES.find((c) => c.code === code);
 }
+
+/**
+ * Format an amount showing both original and converted currency.
+ * Returns a string like "₹1,000.00 (~$11.90)" if currencies differ, or just the formatted amount.
+ */
+export function formatWithConversion(
+  amount: number,
+  fromCurrency: string,
+  toCurrency: string,
+  rates: Record<string, number> = FALLBACK_RATES_TO_INR,
+): string {
+  const formatted = formatCurrency(amount, fromCurrency);
+  if (fromCurrency === toCurrency) return formatted;
+
+  const converted = convertCurrency(amount, fromCurrency, toCurrency, rates);
+  const convertedFormatted = formatCurrency(converted, toCurrency);
+  return `${formatted} (~${convertedFormatted})`;
+}
+
+/**
+ * Convert an array of expense amounts to a target currency.
+ */
+export function convertExpenseAmounts(
+  amounts: { amount: number; currency: string }[],
+  targetCurrency: string,
+  rates: Record<string, number> = FALLBACK_RATES_TO_INR,
+): number {
+  return amounts.reduce((total, item) => {
+    return (
+      total + convertCurrency(item.amount, item.currency, targetCurrency, rates)
+    );
+  }, 0);
+}
+
+/**
+ * Get the fallback exchange rates (useful for synchronous access).
+ */
+export function getFallbackRates(): Record<string, number> {
+  return { ...FALLBACK_RATES_TO_INR };
+}

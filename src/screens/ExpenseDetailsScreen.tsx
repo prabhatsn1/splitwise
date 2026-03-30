@@ -1,381 +1,297 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import React, { useMemo } from "react";
+import { ScrollView, View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
-import { StackNavigationProp } from "@react-navigation/stack";
+import { RouteProp, useRoute } from "@react-navigation/native";
 import { useApp } from "../context/AppContext";
-import { RootStackParamList, Expense } from "../types";
-import { styles } from "../styles/screens/ExpenseDetailsScreen.styles";
+import { useTheme } from "../context/ThemeContext";
+import { RootStackParamList, GroupAnalytics, SimplifiedDebt } from "../types";
+import { AnalyticsService } from "../services/analyticsService";
+import { MonthlySpendingChart } from "../components/MonthlySpendingChart";
+import { CategoryPieChart } from "../components/CategoryPieChart";
+import { DebtSimplificationView } from "../components/DebtSimplificationView";
 
-type ExpenseDetailsRouteProp = RouteProp<RootStackParamList, "ExpenseDetails">;
-type ExpenseDetailsNavProp = StackNavigationProp<RootStackParamList>;
+type GroupAnalyticsRouteProp = RouteProp<RootStackParamList, "GroupAnalytics">;
 
-const CATEGORIES: Expense["category"][] = [
-  "Food",
-  "Transport",
-  "Entertainment",
-  "Bills",
-  "Shopping",
-  "Travel",
-  "Other",
+const COLORS = [
+  "#5bc5a7",
+  "#2196F3",
+  "#FF9800",
+  "#9C27B0",
+  "#F44336",
+  "#4CAF50",
+  "#795548",
+  "#607D8B",
 ];
 
-const CATEGORY_ICONS: Record<Expense["category"], string> = {
-  Food: "fast-food-outline",
-  Transport: "car-outline",
-  Entertainment: "film-outline",
-  Bills: "document-text-outline",
-  Shopping: "bag-outline",
-  Travel: "airplane-outline",
-  Other: "ellipsis-horizontal-outline",
-};
+export default function GroupAnalyticsScreen() {
+  const route = useRoute<GroupAnalyticsRouteProp>();
+  const { state } = useApp();
+  const { colors } = useTheme();
+  const { groupId } = route.params;
 
-export default function ExpenseDetailsScreen() {
-  const route = useRoute<ExpenseDetailsRouteProp>();
-  const navigation = useNavigation<ExpenseDetailsNavProp>();
-  const { state, updateExpense, deleteExpense } = useApp();
-  const { expenseId } = route.params;
+  const group = state.groups.find((g) => g.id === groupId);
 
-  const expense = state.expenses.find((e) => e.id === expenseId);
-  const group = expense
-    ? state.groups.find((g) => g.id === expense.groupId)
-    : null;
+  const analytics: GroupAnalytics | null = useMemo(() => {
+    if (!group) return null;
+    return AnalyticsService.calculateGroupAnalytics(
+      state.expenses,
+      groupId,
+      group.members,
+    );
+  }, [state.expenses, groupId, group]);
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [editDescription, setEditDescription] = useState(
-    expense?.description ?? "",
-  );
-  const [editAmount, setEditAmount] = useState(
-    expense?.amount.toFixed(2) ?? "",
-  );
-  const [editCategory, setEditCategory] = useState<Expense["category"]>(
-    expense?.category ?? "Other",
-  );
-  const [isSaving, setIsSaving] = useState(false);
+  const simplifiedDebts: SimplifiedDebt[] = useMemo(() => {
+    if (!group) return [];
+    return AnalyticsService.simplifyDebts(
+      state.expenses,
+      groupId,
+      group.members,
+    );
+  }, [state.expenses, groupId, group]);
 
-  useEffect(() => {
-    if (expense) {
-      navigation.setOptions({ title: expense.description });
-    }
-  }, [expense, navigation]);
-
-  if (!expense) {
+  if (!group) {
     return (
-      <View
-        style={[
-          styles.container,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
-      >
-        <Ionicons name="receipt-outline" size={64} color="#ccc" />
-        <Text style={{ color: "#888", marginTop: 12, fontSize: 16 }}>
-          Expense not found
+      <View style={styles.emptyContainer}>
+        <Ionicons name="analytics-outline" size={64} color="#ccc" />
+        <Text style={styles.emptyTitle}>Group Not Found</Text>
+      </View>
+    );
+  }
+
+  if (!analytics || analytics.expenseCount === 0) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Ionicons name="analytics-outline" size={64} color="#ccc" />
+        <Text style={styles.emptyTitle}>No Analytics Yet</Text>
+        <Text style={styles.emptySubtext}>
+          Add expenses to this group to see analytics
         </Text>
       </View>
     );
   }
 
-  const handleSave = async () => {
-    const parsedAmount = parseFloat(editAmount);
-    if (!editDescription.trim()) {
-      Alert.alert("Validation", "Description cannot be empty.");
-      return;
-    }
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert("Validation", "Please enter a valid amount.");
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      await updateExpense(expenseId, {
-        description: editDescription.trim(),
-        amount: parsedAmount,
-        category: editCategory,
-      });
-      navigation.setOptions({ title: editDescription.trim() });
-      setIsEditing(false);
-    } catch {
-      Alert.alert("Error", "Failed to update expense. Please try again.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleDelete = () => {
-    Alert.alert(
-      "Delete Expense",
-      `Are you sure you want to delete "${expense.description}"? This cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteExpense(expenseId);
-              navigation.goBack();
-            } catch {
-              Alert.alert(
-                "Error",
-                "Failed to delete expense. Please try again.",
-              );
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  const handleCancelEdit = () => {
-    setEditDescription(expense.description);
-    setEditAmount(expense.amount.toFixed(2));
-    setEditCategory(expense.category);
-    setIsEditing(false);
-  };
-
-  const userSplit = expense.splits.find(
-    (s) => s.userId === state.currentUser?.id,
-  );
-  const youPaid = expense.paidBy.id === state.currentUser?.id;
-
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Hero card */}
-        <View style={styles.heroCard}>
-          <View style={styles.categoryIcon}>
-            <Ionicons
-              name={CATEGORY_ICONS[expense.category] as any}
-              size={28}
-              color="#fff"
-            />
-          </View>
-          <Text style={styles.heroAmount}>₹{expense.amount.toFixed(2)}</Text>
-          <Text style={styles.heroDescription}>{expense.description}</Text>
-          <Text style={styles.heroDate}>
-            {new Date(expense.date).toLocaleDateString("en-IN", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-          </Text>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.groupName}>{group.name}</Text>
+        <Text style={styles.groupSubtitle}>Group Analytics</Text>
+      </View>
+
+      {/* Summary cards */}
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryCard}>
+          <Ionicons name="receipt-outline" size={22} color="#5bc5a7" />
+          <Text style={styles.summaryValue}>{analytics.expenseCount}</Text>
+          <Text style={styles.summaryLabel}>Expenses</Text>
         </View>
+        <View style={styles.summaryCard}>
+          <Ionicons name="cash-outline" size={22} color="#FF9800" />
+          <Text style={styles.summaryValue}>
+            ₹{analytics.totalSpend.toFixed(0)}
+          </Text>
+          <Text style={styles.summaryLabel}>Total Spend</Text>
+        </View>
+        <View style={styles.summaryCard}>
+          <Ionicons name="stats-chart-outline" size={22} color="#2196F3" />
+          <Text style={styles.summaryValue}>
+            ₹{analytics.averageExpense.toFixed(0)}
+          </Text>
+          <Text style={styles.summaryLabel}>Average</Text>
+        </View>
+      </View>
 
-        {/* Edit / View mode */}
-        {isEditing ? (
-          /* ── Edit Mode ── */
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Edit Expense</Text>
+      {/* Monthly spending */}
+      <MonthlySpendingChart data={analytics.monthlySpending} colors={colors} />
 
-            <Text style={styles.editLabel}>Description</Text>
-            <TextInput
-              style={styles.editField}
-              value={editDescription}
-              onChangeText={setEditDescription}
-              placeholder="Description"
-              placeholderTextColor="#bbb"
-            />
+      {/* Category breakdown */}
+      <CategoryPieChart data={analytics.categoryBreakdown} colors={colors} />
 
-            <Text style={styles.editLabel}>Amount (₹)</Text>
-            <TextInput
-              style={styles.editField}
-              value={editAmount}
-              onChangeText={setEditAmount}
-              keyboardType="decimal-pad"
-              placeholder="0.00"
-              placeholderTextColor="#bbb"
-            />
-
-            <Text style={styles.editLabel}>Category</Text>
-            <View style={styles.categoryPicker}>
-              {CATEGORIES.map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  style={[
-                    styles.categoryChip,
-                    editCategory === cat && styles.categoryChipSelected,
-                  ]}
-                  onPress={() => setEditCategory(cat)}
-                >
-                  <Text
-                    style={[
-                      styles.categoryChipText,
-                      editCategory === cat && styles.categoryChipTextSelected,
-                    ]}
-                  >
-                    {cat}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.actionsRow}>
-              <TouchableOpacity
-                style={styles.cancelEditButton}
-                onPress={handleCancelEdit}
-              >
-                <Text style={styles.cancelEditButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.saveButton}
-                onPress={handleSave}
-                disabled={isSaving}
-              >
-                <Text style={styles.saveButtonText}>
-                  {isSaving ? "Saving…" : "Save Changes"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          /* ── View Mode ── */
-          <>
-            {/* Details */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Details</Text>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Category</Text>
-                <Text style={styles.detailValue}>{expense.category}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Paid by</Text>
-                <Text style={styles.detailValue}>
-                  {youPaid ? "You" : expense.paidBy.name}
+      {/* Member spending breakdown */}
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Member Spending</Text>
+        {analytics.memberSpending.map((item, index) => {
+          const color = COLORS[index % COLORS.length];
+          const isPositive = item.netBalance >= 0;
+          return (
+            <View key={item.member.id} style={styles.memberRow}>
+              <View style={[styles.memberAvatar, { borderColor: color }]}>
+                <Text style={[styles.memberAvatarText, { color }]}>
+                  {item.member.name.charAt(0).toUpperCase()}
                 </Text>
               </View>
-              {group && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Group</Text>
-                  <Text style={styles.detailValue}>{group.name}</Text>
-                </View>
-              )}
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Split type</Text>
-                <Text style={styles.detailValue}>{expense.splitType}</Text>
+              <View style={styles.memberInfo}>
+                <Text style={styles.memberName}>
+                  {item.member.id === state.currentUser?.id
+                    ? `${item.member.name} (You)`
+                    : item.member.name}
+                </Text>
+                <Text style={styles.memberMeta}>
+                  Paid ₹{item.totalPaid.toFixed(0)} · Share ₹
+                  {item.totalShare.toFixed(0)}
+                </Text>
               </View>
-              {expense.location && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Location</Text>
-                  <Text style={styles.detailValue}>
-                    {expense.location.address}
-                  </Text>
-                </View>
-              )}
-              {expense.recurring && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Recurring</Text>
-                  <Text style={styles.detailValue}>
-                    Every {expense.recurring.frequency}
-                  </Text>
-                </View>
-              )}
-              {expense.tags.length > 0 && (
-                <View
+              <View style={styles.memberBalance}>
+                <Text
                   style={[
-                    styles.detailRow,
-                    { flexDirection: "column", alignItems: "flex-start" },
+                    styles.memberBalanceAmount,
+                    { color: isPositive ? "#4CAF50" : "#F44336" },
                   ]}
                 >
-                  <Text style={[styles.detailLabel, { marginBottom: 6 }]}>
-                    Tags
-                  </Text>
-                  <View style={styles.tagRow}>
-                    {expense.tags.map((tag) => (
-                      <View key={tag} style={styles.tag}>
-                        <Text style={styles.tagText}>{tag}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
-            </View>
-
-            {/* Your share */}
-            {userSplit && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Your Share</Text>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Your split amount</Text>
-                  <Text style={styles.detailValue}>
-                    ₹{userSplit.amount?.toFixed(2) ?? "0.00"}
-                  </Text>
-                </View>
-                {youPaid && (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>You are owed</Text>
-                    <Text style={[styles.detailValue, { color: "#4CAF50" }]}>
-                      ₹{(expense.amount - (userSplit.amount ?? 0)).toFixed(2)}
-                    </Text>
-                  </View>
-                )}
-                {!youPaid && (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>You owe</Text>
-                    <Text style={[styles.detailValue, { color: "#F44336" }]}>
-                      ₹{userSplit.amount?.toFixed(2) ?? "0.00"}
-                    </Text>
-                  </View>
-                )}
+                  {isPositive ? "+" : "-"}₹
+                  {Math.abs(item.netBalance).toFixed(0)}
+                </Text>
+                <Text style={styles.memberBalanceLabel}>
+                  {isPositive ? "gets back" : "owes"}
+                </Text>
               </View>
-            )}
-
-            {/* Splits breakdown */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Split Breakdown</Text>
-              {expense.splitBetween.map((user) => {
-                const split = expense.splits.find((s) => s.userId === user.id);
-                return (
-                  <View key={user.id} style={styles.splitRow}>
-                    <View style={styles.splitAvatar}>
-                      <Text style={styles.splitAvatarText}>
-                        {user.name.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                    <Text style={styles.splitName}>
-                      {user.id === state.currentUser?.id ? "You" : user.name}
-                    </Text>
-                    <Text style={styles.splitAmount}>
-                      ₹{split?.amount?.toFixed(2) ?? "0.00"}
-                    </Text>
-                  </View>
-                );
-              })}
             </View>
+          );
+        })}
+      </View>
 
-            {/* Actions */}
-            <View style={styles.actionsRow}>
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={handleDelete}
-              >
-                <Text style={styles.deleteButtonText}>Delete</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.editButton}
-                onPress={() => setIsEditing(true)}
-              >
-                <Text style={styles.editButtonText}>Edit</Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+      {/* Debt simplification */}
+      <DebtSimplificationView
+        debts={simplifiedDebts}
+        currentUserId={state.currentUser?.id}
+      />
+
+      <View style={{ height: 32 }} />
+    </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+    padding: 32,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    color: "#333",
+    marginTop: 16,
+    fontWeight: "600",
+  },
+  emptySubtext: {
+    fontSize: 15,
+    color: "#888",
+    marginTop: 8,
+    textAlign: "center",
+  },
+  header: {
+    backgroundColor: "#5bc5a7",
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  groupName: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  groupSubtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 4,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    gap: 10,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginTop: 6,
+  },
+  summaryLabel: {
+    fontSize: 11,
+    color: "#888",
+    marginTop: 2,
+  },
+  sectionCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    margin: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  memberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  memberAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fafafa",
+    marginRight: 12,
+  },
+  memberAvatarText: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
+    fontSize: 15,
+    color: "#333",
+    fontWeight: "500",
+  },
+  memberMeta: {
+    fontSize: 12,
+    color: "#888",
+    marginTop: 2,
+  },
+  memberBalance: {
+    alignItems: "flex-end",
+  },
+  memberBalanceAmount: {
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+  memberBalanceLabel: {
+    fontSize: 11,
+    color: "#888",
+    marginTop: 1,
+  },
+});

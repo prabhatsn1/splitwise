@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,8 @@ import {
   AdvancedSplit,
   Location,
   RecurringConfig,
+  ExpenseItem,
+  DefaultSplitTemplate,
 } from "../types";
 import { styles } from "../styles/screens/AddExpenseScreen.styles";
 import * as ImagePicker from "expo-image-picker";
@@ -35,8 +37,11 @@ import {
   Currency,
   formatCurrency,
   convertCurrency,
+  formatWithConversion,
+  getExchangeRates,
 } from "../services/currencyService";
 import { parseReceipt } from "../services/ocrService";
+import DefaultSplitService from "../services/defaultSplitService";
 
 type AddExpenseNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -85,6 +90,7 @@ type PanelType =
   | "location"
   | "tags"
   | "recurring"
+  | "items"
   | null;
 
 export default function AddExpenseScreen() {
@@ -131,6 +137,24 @@ export default function AddExpenseScreen() {
   const [activePanel, setActivePanel] = useState<PanelType>(null);
   const [showReceiptCamera, setShowReceiptCamera] = useState(false);
 
+  // Itemization
+  const [items, setItems] = useState<ExpenseItem[]>([]);
+  const [newItemName, setNewItemName] = useState("");
+  const [newItemPrice, setNewItemPrice] = useState("");
+  const [newItemQty, setNewItemQty] = useState("1");
+
+  // Default splits
+  const [savedTemplates, setSavedTemplates] = useState<DefaultSplitTemplate[]>(
+    [],
+  );
+  const [templateName, setTemplateName] = useState("");
+
+  // Currency conversion
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>(
+    {},
+  );
+  const defaultCurrency = "INR"; // User's default currency
+
   const currentGroup = state.groups.find((g) => g.id === selectedGroup);
   const availableMembers = selectedGroup
     ? currentGroup?.members || []
@@ -141,6 +165,21 @@ export default function AddExpenseScreen() {
       setSelectedMembers(currentGroup.members.map((m) => m.id));
     }
   }, [selectedGroup, currentGroup]);
+
+  // Load exchange rates
+  useEffect(() => {
+    getExchangeRates()
+      .then(setExchangeRates)
+      .catch(() => {});
+  }, []);
+
+  // Load saved split templates
+  useEffect(() => {
+    DefaultSplitService.getInstance()
+      .getTemplates(selectedGroup || undefined)
+      .then(setSavedTemplates)
+      .catch(() => {});
+  }, [selectedGroup]);
 
   const togglePanel = (panel: PanelType) => {
     setActivePanel((prev) => (prev === panel ? null : panel));
@@ -273,6 +312,111 @@ export default function AddExpenseScreen() {
     return true;
   };
 
+  // ── Item management ──
+  const handleAddItem = () => {
+    const price = parseFloat(newItemPrice);
+    const qty = parseInt(newItemQty, 10) || 1;
+    if (!newItemName.trim() || isNaN(price) || price <= 0) {
+      Alert.alert("Error", "Enter a valid item name and price");
+      return;
+    }
+    const item: ExpenseItem = {
+      id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      name: newItemName.trim(),
+      price,
+      quantity: qty,
+    };
+    setItems((prev) => [...prev, item]);
+    setNewItemName("");
+    setNewItemPrice("");
+    setNewItemQty("1");
+    // Auto-update total amount from items
+    const newTotal = [...items, item].reduce(
+      (sum, i) => sum + i.price * i.quantity,
+      0,
+    );
+    setAmount(newTotal.toFixed(2));
+  };
+
+  const handleRemoveItem = (itemId: string) => {
+    setItems((prev) => {
+      const updated = prev.filter((i) => i.id !== itemId);
+      const newTotal = updated.reduce(
+        (sum, i) => sum + i.price * i.quantity,
+        0,
+      );
+      if (updated.length > 0) {
+        setAmount(newTotal.toFixed(2));
+      }
+      return updated;
+    });
+  };
+
+  const handleUpdateItemQuantity = (itemId: string, qty: number) => {
+    if (qty < 1) return;
+    setItems((prev) => {
+      const updated = prev.map((i) =>
+        i.id === itemId ? { ...i, quantity: qty } : i,
+      );
+      const newTotal = updated.reduce(
+        (sum, i) => sum + i.price * i.quantity,
+        0,
+      );
+      setAmount(newTotal.toFixed(2));
+      return updated;
+    });
+  };
+
+  // ── Default split templates ──
+  const handleSaveSplitTemplate = async () => {
+    if (!templateName.trim()) {
+      Alert.alert("Error", "Enter a name for this split template");
+      return;
+    }
+    try {
+      await DefaultSplitService.getInstance().saveTemplate(
+        templateName.trim(),
+        splitType,
+        splitType === "equal"
+          ? selectedMembers.map((id) => ({ userId: id }))
+          : customSplits,
+        selectedGroup || undefined,
+      );
+      const templates = await DefaultSplitService.getInstance().getTemplates(
+        selectedGroup || undefined,
+      );
+      setSavedTemplates(templates);
+      setTemplateName("");
+      Alert.alert("Saved", "Split template saved successfully");
+    } catch {
+      Alert.alert("Error", "Failed to save template");
+    }
+  };
+
+  const handleLoadSplitTemplate = (template: DefaultSplitTemplate) => {
+    setSplitType(template.splitType);
+    const memberIds = template.splits.map((s) => s.userId);
+    const validIds = memberIds.filter((id) =>
+      availableMembers.some((m) => m.id === id),
+    );
+    setSelectedMembers(validIds);
+    if (template.splitType !== "equal") {
+      setCustomSplits(
+        template.splits.filter((s) => validIds.includes(s.userId)),
+      );
+    }
+    Alert.alert("Loaded", `Applied "${template.name}" split template`);
+  };
+
+  const handleDeleteSplitTemplate = async (templateId: string) => {
+    try {
+      await DefaultSplitService.getInstance().deleteTemplate(templateId);
+      setSavedTemplates((prev) => prev.filter((t) => t.id !== templateId));
+    } catch {
+      Alert.alert("Error", "Failed to delete template");
+    }
+  };
+
   const handleSaveExpense = async () => {
     if (!description.trim()) {
       Alert.alert("Error", "Please enter a description");
@@ -328,6 +472,7 @@ export default function AddExpenseScreen() {
       location,
       recurring: isRecurring ? recurringConfig : undefined,
       tags,
+      items: items.length > 0 ? items : undefined,
     };
 
     try {
@@ -357,6 +502,22 @@ export default function AddExpenseScreen() {
       if (result.description) {
         setDescription(result.description);
         prefilled.push(`Description: ${result.description}`);
+      }
+      if (result.items && result.items.length > 0) {
+        setItems(result.items);
+        prefilled.push(`Items: ${result.items.length} found`);
+        // Recalculate total from items
+        const itemTotal = result.items.reduce(
+          (sum, i) => sum + i.price * i.quantity,
+          0,
+        );
+        if (itemTotal > 0) {
+          setAmount(itemTotal.toFixed(2));
+        }
+      }
+      if (result.detectedCurrency) {
+        setCurrency(result.detectedCurrency);
+        prefilled.push(`Currency: ${result.detectedCurrency}`);
       }
       if (prefilled.length > 0) {
         Alert.alert(
@@ -440,6 +601,13 @@ export default function AddExpenseScreen() {
       label: "Recurring",
       value: isRecurring ? recurringConfig.frequency : undefined,
       active: isRecurring,
+    },
+    {
+      key: "items",
+      icon: "list",
+      label: "Items",
+      value: items.length > 0 ? `${items.length}` : undefined,
+      active: items.length > 0,
     },
   ];
 
@@ -703,6 +871,85 @@ export default function AddExpenseScreen() {
               })}
         </View>
       )}
+
+      {/* ── Save / Load Default Splits ── */}
+      {selectedMembers.length > 0 && (
+        <View style={styles.splitPreview}>
+          <Text style={styles.splitPreviewTitle}>Default Split Templates</Text>
+
+          {/* Saved templates */}
+          {savedTemplates.length > 0 && (
+            <View style={{ marginBottom: 8 }}>
+              {savedTemplates.map((tpl) => (
+                <View
+                  key={tpl.id}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: 6,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#f0f0f0",
+                  }}
+                >
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    onPress={() => handleLoadSplitTemplate(tpl)}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        color: colors.primary,
+                        fontWeight: "500",
+                      }}
+                    >
+                      {tpl.name}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: "#999" }}>
+                      {tpl.splitType} · {tpl.splits.length} members
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleDeleteSplitTemplate(tpl.id)}
+                  >
+                    <Ionicons name="trash-outline" size={16} color="#ff6b6b" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Save current as template */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 4,
+            }}
+          >
+            <TextInput
+              style={styles.customSplitInput}
+              value={templateName}
+              onChangeText={setTemplateName}
+              placeholder="Template name..."
+              placeholderTextColor="#999"
+            />
+            <TouchableOpacity
+              style={{
+                backgroundColor: colors.primary,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+              }}
+              onPress={handleSaveSplitTemplate}
+            >
+              <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
+                Save
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 
@@ -943,6 +1190,154 @@ export default function AddExpenseScreen() {
     </View>
   );
 
+  const renderItemsPanel = () => (
+    <View style={styles.panel}>
+      <View style={styles.panelHeader}>
+        <Text style={styles.panelTitle}>Line Items</Text>
+        <TouchableOpacity
+          style={styles.panelClose}
+          onPress={() => setActivePanel(null)}
+        >
+          <Ionicons name="close" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Existing items */}
+      {items.length > 0 && (
+        <View style={{ marginBottom: 12 }}>
+          {items.map((item) => (
+            <View
+              key={item.id}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 8,
+                borderBottomWidth: 1,
+                borderBottomColor: "#f0f0f0",
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: "#333",
+                    fontWeight: "500",
+                  }}
+                >
+                  {item.name}
+                </Text>
+                <Text style={{ fontSize: 12, color: "#888" }}>
+                  {formatCurrency(item.price, currency)} × {item.quantity} ={" "}
+                  {formatCurrency(item.price * item.quantity, currency)}
+                </Text>
+              </View>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() =>
+                    handleUpdateItemQuantity(item.id, item.quantity - 1)
+                  }
+                >
+                  <Ionicons
+                    name="remove-circle-outline"
+                    size={20}
+                    color="#999"
+                  />
+                </TouchableOpacity>
+                <Text style={{ fontSize: 14, fontWeight: "600" }}>
+                  {item.quantity}
+                </Text>
+                <TouchableOpacity
+                  onPress={() =>
+                    handleUpdateItemQuantity(item.id, item.quantity + 1)
+                  }
+                >
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={20}
+                    color={colors.primary}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleRemoveItem(item.id)}>
+                  <Ionicons name="trash-outline" size={18} color="#ff6b6b" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              paddingTop: 8,
+            }}
+          >
+            <Text style={{ fontSize: 14, fontWeight: "600", color: "#333" }}>
+              Total from items
+            </Text>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "700",
+                color: colors.primary,
+              }}
+            >
+              {formatCurrency(
+                items.reduce((s, i) => s + i.price * i.quantity, 0),
+                currency,
+              )}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Add new item */}
+      <View style={{ gap: 8 }}>
+        <TextInput
+          style={styles.customSplitInput}
+          value={newItemName}
+          onChangeText={setNewItemName}
+          placeholder="Item name"
+          placeholderTextColor="#999"
+        />
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TextInput
+            style={[styles.customSplitInput, { flex: 1 }]}
+            value={newItemPrice}
+            onChangeText={setNewItemPrice}
+            placeholder="Price"
+            keyboardType="numeric"
+            placeholderTextColor="#999"
+          />
+          <TextInput
+            style={[styles.customSplitInput, { width: 60 }]}
+            value={newItemQty}
+            onChangeText={setNewItemQty}
+            placeholder="Qty"
+            keyboardType="numeric"
+            placeholderTextColor="#999"
+          />
+          <TouchableOpacity
+            style={{
+              backgroundColor: colors.primary,
+              borderRadius: 8,
+              paddingHorizontal: 14,
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+            onPress={handleAddItem}
+          >
+            <Ionicons name="add" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+
   const panelRenderers: Record<string, () => React.JSX.Element> = {
     category: renderCategoryPanel,
     payer: renderPayerPanel,
@@ -951,6 +1346,7 @@ export default function AddExpenseScreen() {
     location: renderLocationPanel,
     tags: renderTagsPanel,
     recurring: renderRecurringPanel,
+    items: renderItemsPanel,
   };
 
   return (
@@ -983,6 +1379,25 @@ export default function AddExpenseScreen() {
             placeholderTextColor="#ccc"
           />
         </View>
+        {/* Currency conversion preview */}
+        {currency !== defaultCurrency && amount && parseFloat(amount) > 0 && (
+          <Text
+            style={{
+              fontSize: 13,
+              color: "#888",
+              marginTop: 4,
+              textAlign: "right",
+            }}
+          >
+            ≈{" "}
+            {formatWithConversion(
+              parseFloat(amount),
+              currency,
+              defaultCurrency,
+              exchangeRates,
+            )}
+          </Text>
+        )}
       </View>
 
       {/* ── Group selector ── */}
