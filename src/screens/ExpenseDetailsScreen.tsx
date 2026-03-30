@@ -15,6 +15,11 @@ import { StackNavigationProp } from "@react-navigation/stack";
 import { useApp } from "../context/AppContext";
 import { RootStackParamList, Expense } from "../types";
 import { styles } from "../styles/screens/ExpenseDetailsScreen.styles";
+import {
+  formatCurrency,
+  formatWithConversion,
+  getExchangeRates,
+} from "../services/currencyService";
 
 type ExpenseDetailsRouteProp = RouteProp<RootStackParamList, "ExpenseDetails">;
 type ExpenseDetailsNavProp = StackNavigationProp<RootStackParamList>;
@@ -61,6 +66,15 @@ export default function ExpenseDetailsScreen() {
     expense?.category ?? "Other",
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>(
+    {},
+  );
+
+  useEffect(() => {
+    getExchangeRates()
+      .then(setExchangeRates)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (expense) {
@@ -166,7 +180,26 @@ export default function ExpenseDetailsScreen() {
               color="#fff"
             />
           </View>
-          <Text style={styles.heroAmount}>₹{expense.amount.toFixed(2)}</Text>
+          <Text style={styles.heroAmount}>
+            {formatCurrency(expense.amount, expense.currency || "INR")}
+          </Text>
+          {expense.currency && expense.currency !== "INR" && (
+            <Text
+              style={{
+                fontSize: 14,
+                color: "rgba(255,255,255,0.75)",
+                marginBottom: 2,
+              }}
+            >
+              ≈{" "}
+              {formatWithConversion(
+                expense.amount,
+                expense.currency,
+                "INR",
+                exchangeRates,
+              )}
+            </Text>
+          )}
           <Text style={styles.heroDescription}>{expense.description}</Text>
           <Text style={styles.heroDate}>
             {new Date(expense.date).toLocaleDateString("en-IN", {
@@ -269,6 +302,12 @@ export default function ExpenseDetailsScreen() {
                 <Text style={styles.detailLabel}>Split type</Text>
                 <Text style={styles.detailValue}>{expense.splitType}</Text>
               </View>
+              {expense.currency && expense.currency !== "INR" && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Currency</Text>
+                  <Text style={styles.detailValue}>{expense.currency}</Text>
+                </View>
+              )}
               {expense.location && (
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Location</Text>
@@ -313,14 +352,20 @@ export default function ExpenseDetailsScreen() {
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Your split amount</Text>
                   <Text style={styles.detailValue}>
-                    ₹{userSplit.amount?.toFixed(2) ?? "0.00"}
+                    {formatCurrency(
+                      userSplit.amount ?? 0,
+                      expense.currency || "INR",
+                    )}
                   </Text>
                 </View>
                 {youPaid && (
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>You are owed</Text>
                     <Text style={[styles.detailValue, { color: "#4CAF50" }]}>
-                      ₹{(expense.amount - (userSplit.amount ?? 0)).toFixed(2)}
+                      {formatCurrency(
+                        expense.amount - (userSplit.amount ?? 0),
+                        expense.currency || "INR",
+                      )}
                     </Text>
                   </View>
                 )}
@@ -328,7 +373,10 @@ export default function ExpenseDetailsScreen() {
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>You owe</Text>
                     <Text style={[styles.detailValue, { color: "#F44336" }]}>
-                      ₹{userSplit.amount?.toFixed(2) ?? "0.00"}
+                      {formatCurrency(
+                        userSplit.amount ?? 0,
+                        expense.currency || "INR",
+                      )}
                     </Text>
                   </View>
                 )}
@@ -351,12 +399,91 @@ export default function ExpenseDetailsScreen() {
                       {user.id === state.currentUser?.id ? "You" : user.name}
                     </Text>
                     <Text style={styles.splitAmount}>
-                      ₹{split?.amount?.toFixed(2) ?? "0.00"}
+                      {formatCurrency(
+                        split?.amount ?? 0,
+                        expense.currency || "INR",
+                      )}
                     </Text>
                   </View>
                 );
               })}
             </View>
+
+            {/* Line Items */}
+            {expense.items && expense.items.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Line Items</Text>
+                {expense.items.map((item, index) => (
+                  <View
+                    key={item.id || index}
+                    style={[
+                      styles.detailRow,
+                      { flexDirection: "row", alignItems: "center" },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.detailValue}>{item.name}</Text>
+                      {item.quantity > 1 && (
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: "#888",
+                            marginTop: 2,
+                          }}
+                        >
+                          {formatCurrency(
+                            item.price,
+                            expense.currency || "INR",
+                          )}{" "}
+                          × {item.quantity}
+                        </Text>
+                      )}
+                    </View>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "600",
+                        color: "#333",
+                      }}
+                    >
+                      {formatCurrency(
+                        item.price * item.quantity,
+                        expense.currency || "INR",
+                      )}
+                    </Text>
+                  </View>
+                ))}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    paddingTop: 8,
+                    borderTopWidth: 1,
+                    borderTopColor: "#f0f0f0",
+                    marginTop: 4,
+                  }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "600" }}>
+                    Items Total
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "700",
+                      color: "#5bc5a7",
+                    }}
+                  >
+                    {formatCurrency(
+                      expense.items.reduce(
+                        (s, i) => s + i.price * i.quantity,
+                        0,
+                      ),
+                      expense.currency || "INR",
+                    )}
+                  </Text>
+                </View>
+              </View>
+            )}
 
             {/* Actions */}
             <View style={styles.actionsRow}>
