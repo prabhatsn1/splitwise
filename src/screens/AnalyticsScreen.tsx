@@ -135,11 +135,11 @@ export default function AnalyticsScreen() {
 
       {/* Charts */}
       <MonthlySpendingChart data={analytics.monthlySpending} colors={colors} />
-      <WeeklySpendingChart data={weeklyData} />
+      <WeeklySpendingChart data={weeklyData} colors={colors} />
       <YearOverYearChart data={yoyData} colors={colors} />
       <CategoryPieChart data={analytics.categoryBreakdown} colors={colors} />
-      <BudgetComparisonChart data={budgetData} />
-      <ExpenseFrequencyChart data={frequencyData} />
+      <BudgetComparisonChart data={budgetData} colors={colors} />
+      <ExpenseFrequencyChart data={frequencyData} colors={colors} />
       <SpendingTrendsCard trends={analytics.spendingTrends} colors={colors} />
 
       {/* Friend Spending Ranking */}
