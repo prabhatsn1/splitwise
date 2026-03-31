@@ -246,4 +246,71 @@ export const styles = StyleSheet.create({
   invActionBtn: {
     padding: 6,
   },
+  // ── Contacts discovery ──────────────────────────────────────────────
+  contactsSection: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  contactsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  contactsSubtitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#5bc5a7",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginBottom: 6,
+  },
+  contactsEmpty: {
+    fontSize: 13,
+    color: "#888",
+    textAlign: "center",
+    paddingVertical: 8,
+  },
+  contactItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#f0f0f0",
+  },
+  onAppBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#e8f7f3",
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 3,
+  },
+  onAppBadgeText: {
+    fontSize: 10,
+    color: "#5bc5a7",
+    fontWeight: "700",
+  },
+  addContactBtn: {
+    backgroundColor: "#5bc5a7",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    marginLeft: 8,
+  },
+  inviteContactBtn: {
+    backgroundColor: "#ff9800",
+  },
+  addContactBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
 });
