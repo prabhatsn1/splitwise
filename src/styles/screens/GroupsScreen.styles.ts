@@ -102,6 +102,39 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     color: "#999",
   },
+  memberAvatarsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  memberAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#5bc5a7",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#fff",
+  },
+  memberAvatarText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  memberAvatarMore: {
+    backgroundColor: "#b2dfdb",
+  },
+  memberAvatarMoreText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#00796b",
+  },
+  expenseCount: {
+    fontSize: 12,
+    color: "#999",
+    marginLeft: 8,
+  },
   groupBalance: {
     alignItems: "flex-end",
   },
