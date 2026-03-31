@@ -199,3 +199,12 @@ create trigger set_updated_at before update on expenses
 
 create trigger set_updated_at before update on groups
   for each row execute function update_updated_at();
+
+-- ── Realtime ───────────────────────────────────────────────────────────────────
+-- Enable Realtime publication for live cross-user sync.
+-- Run these once in the Supabase SQL Editor.
+
+alter publication supabase_realtime add table expenses;
+alter publication supabase_realtime add table groups;
+alter publication supabase_realtime add table settlements;
+
