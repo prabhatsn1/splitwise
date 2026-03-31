@@ -357,6 +357,73 @@ export class UserService {
     return this.getAllKnownUsers(localData);
   }
 
+  /**
+   * Fetch only the users that the current user has explicitly added as friends,
+   * using the `friendships` table as the source of truth.
+   */
+  async getFriends(currentUserId: string): Promise<User[]> {
+    if (this.isSupabaseAvailable()) {
+      const client = this.getClient();
+
+      // Rows where the current user is the one who added the friend
+      const { data: rows, error } = await client
+        .from("friendships")
+        .select(
+          "friend_id, friend_name, friend_email, friend_phone, friend_avatar",
+        )
+        .eq("user_id", currentUserId)
+        .eq("status", "active");
+
+      if (error) {
+        console.error("Failed to fetch friendships:", error);
+        // Fall through to localStorage
+      } else {
+        return (rows || []).map(
+          (row: any): User => ({
+            id: row.friend_id,
+            name: row.friend_name,
+            email: row.friend_email,
+            phone: row.friend_phone ?? undefined,
+            avatar: row.friend_avatar ?? undefined,
+          }),
+        );
+      }
+    }
+
+    const localData = await this.localStorage.getLocalData();
+    return localData.friends;
+  }
+
+  /**
+   * Persist a friendship record so loadFriends can later restore it from
+   * the `friendships` table rather than scanning all users.
+   */
+  async saveFriendship(currentUserId: string, friend: User): Promise<void> {
+    if (this.isSupabaseAvailable()) {
+      const client = this.getClient();
+      const now = new Date().toISOString();
+
+      const { error } = await client.from("friendships").upsert(
+        {
+          user_id: currentUserId,
+          friend_id: friend.id,
+          friend_name: friend.name,
+          friend_email: friend.email,
+          friend_phone: friend.phone || null,
+          friend_avatar: friend.avatar || null,
+          status: "active",
+          created_at: now,
+        },
+        { onConflict: "user_id,friend_id" },
+      );
+
+      if (error) {
+        console.error("Failed to save friendship:", error);
+      }
+    }
+    // localStorage is handled separately by the caller via localStorage.addFriend
+  }
+
   async checkConnectivity(): Promise<boolean> {
     try {
       const db = DatabaseService.getInstance();
