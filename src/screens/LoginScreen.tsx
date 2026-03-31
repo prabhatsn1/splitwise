@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
-import { NetworkError } from "../services/userService";
+import { NetworkError, UserService } from "../services/userService";
 
 export default function LoginScreen() {
   const { loginUser, createUser, continueOffline, state } = useApp();
@@ -29,7 +29,14 @@ export default function LoginScreen() {
   const [showRetryOptions, setShowRetryOptions] = useState(false);
   const [lastError, setLastError] = useState<NetworkError | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [phone, setPhone] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [forgotPasswordVisible, setForgotPasswordVisible] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetEmailError, setResetEmailError] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const [errorModal, setErrorModal] = useState<{
     title: string;
     message: string;
@@ -73,12 +80,12 @@ export default function LoginScreen() {
           break;
         case "auth":
           setErrorModal({
-            title: "Invalid Credentials",
+            title: error.action === "signup" ? "Sign Up Failed" : "Invalid Credentials",
             message: error.message,
           });
           break;
         case "validation":
-          setErrorModal({ title: "Validation Error", message: error.message });
+          setErrorModal({ title: "Sign Up Error", message: error.message });
           break;
         default:
           setErrorModal({ title: "Error", message: error.message });
@@ -152,6 +159,10 @@ export default function LoginScreen() {
       Alert.alert("Error", "Password must be at least 6 characters");
       return;
     }
+    if (phone.trim() && !/^\+?[0-9]{7,15}$/.test(phone.trim())) {
+      Alert.alert("Error", "Please enter a valid phone number");
+      return;
+    }
 
     setLoading(true);
     setLastError(null);
@@ -162,12 +173,45 @@ export default function LoginScreen() {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password,
+        phone: phone.trim() || undefined,
       });
     } catch (error) {
       handleError(error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleForgotPassword = async () => {
+    const trimmed = resetEmail.trim();
+    if (!trimmed) {
+      setResetEmailError("Please enter your email address");
+      return;
+    }
+    if (!isValidEmail(trimmed)) {
+      setResetEmailError("Please enter a valid email address");
+      return;
+    }
+    setResetEmailError("");
+    setResetLoading(true);
+    try {
+      const userService = new UserService();
+      await userService.sendPasswordResetEmail(trimmed);
+      setResetSent(true);
+    } catch (error: any) {
+      setResetEmailError(
+        error?.message || "Failed to send reset email. Please try again.",
+      );
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const closeForgotPassword = () => {
+    setForgotPasswordVisible(false);
+    setResetEmail("");
+    setResetEmailError("");
+    setResetSent(false);
   };
 
   const handleContinueOffline = () => {
@@ -242,6 +286,102 @@ export default function LoginScreen() {
 
   return (
     <>
+      {/* Forgot Password Modal */}
+      <Modal
+        visible={forgotPasswordVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeForgotPassword}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <View style={styles.modalIconWrap}>
+              <Ionicons
+                name={resetSent ? "checkmark-circle" : "lock-open-outline"}
+                size={40}
+                color={resetSent ? "#27ae60" : "#5bc5a7"}
+              />
+            </View>
+            <Text style={styles.modalTitle}>
+              {resetSent ? "Email Sent" : "Reset Password"}
+            </Text>
+            {resetSent ? (
+              <Text style={styles.modalMessage}>
+                A password reset link has been sent to{" "}
+                <Text style={{ fontWeight: "600" }}>{resetEmail.trim()}</Text>.
+                Please check your inbox.
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.modalMessage}>
+                  Enter your registered email and we'll send you a link to reset
+                  your password.
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    styles.resetInput,
+                    !!resetEmailError && styles.inputError,
+                  ]}
+                  value={resetEmail}
+                  onChangeText={(v) => {
+                    setResetEmail(v);
+                    setResetEmailError("");
+                  }}
+                  placeholder="Enter your email"
+                  placeholderTextColor="#999"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!resetLoading}
+                />
+                {!!resetEmailError && (
+                  <Text style={[styles.errorText, styles.resetErrorText]}>
+                    {resetEmailError}
+                  </Text>
+                )}
+              </>
+            )}
+            <View style={styles.resetModalButtons}>
+              {!resetSent && (
+                <TouchableOpacity
+                  style={[
+                    styles.modalButton,
+                    styles.resetSendButton,
+                    resetLoading && styles.disabledButton,
+                  ]}
+                  onPress={handleForgotPassword}
+                  disabled={resetLoading}
+                >
+                  {resetLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.modalButtonText}>Send Reset Link</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  resetSent ? styles.resetSendButton : styles.resetCancelButton,
+                ]}
+                onPress={closeForgotPassword}
+              >
+                <Text
+                  style={[
+                    styles.modalButtonText,
+                    !resetSent && styles.resetCancelText,
+                  ]}
+                >
+                  {resetSent ? "Done" : "Cancel"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Error Modal */}
       <Modal
         visible={!!errorModal}
         transparent
@@ -334,6 +474,32 @@ export default function LoginScreen() {
               </View>
             )}
 
+            {mode === "signup" && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Phone (optional)</Text>
+                <TextInput
+                  style={[styles.input, !!phoneError && styles.inputError]}
+                  value={phone}
+                  onChangeText={(val) => {
+                    setPhone(val);
+                    if (val && !/^\+?[0-9]{7,15}$/.test(val)) {
+                      setPhoneError("Please enter a valid phone number");
+                    } else {
+                      setPhoneError("");
+                    }
+                  }}
+                  placeholder="e.g. +91 9876543210"
+                  placeholderTextColor="#999"
+                  keyboardType="phone-pad"
+                  autoCorrect={false}
+                  editable={!loading}
+                />
+                {!!phoneError && (
+                  <Text style={styles.errorText}>{phoneError}</Text>
+                )}
+              </View>
+            )}
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email</Text>
               <TextInput
@@ -378,6 +544,19 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
             </View>
+
+            {mode === "login" && (
+              <TouchableOpacity
+                style={styles.forgotPasswordLink}
+                onPress={() => {
+                  setResetEmail(email);
+                  setForgotPasswordVisible(true);
+                }}
+                disabled={loading}
+              >
+                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={[
@@ -742,5 +921,41 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  forgotPasswordLink: {
+    alignSelf: "flex-end",
+    marginTop: -12,
+    marginBottom: 20,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: "#5bc5a7",
+    fontWeight: "500",
+  },
+  resetInput: {
+    width: "100%",
+    marginBottom: 4,
+  },
+  resetErrorText: {
+    alignSelf: "flex-start",
+    marginBottom: 8,
+  },
+  resetModalButtons: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  resetSendButton: {
+    backgroundColor: "#5bc5a7",
+    paddingHorizontal: 20,
+  },
+  resetCancelButton: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    paddingHorizontal: 20,
+  },
+  resetCancelText: {
+    color: "#666",
   },
 });

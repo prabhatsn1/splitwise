@@ -582,13 +582,25 @@ export function useDataActions(
           await localStorage.addFriend(friend);
         }
 
+        // Prevent adding duplicates (e.g. existing Supabase user already a friend)
+        const alreadyAdded = state.friends.some(
+          (f) =>
+            f.id === friend.id ||
+            (friend.email && f.email.toLowerCase() === friend.email.toLowerCase()),
+        );
+        if (alreadyAdded) {
+          throw new Error("already_friend");
+        }
+
         dispatch({ type: "ADD_FRIEND", payload: friend });
       } catch (error) {
+        if ((error as Error).message === "already_friend") throw error;
         console.error("Failed to add friend:", error);
         dispatch({ type: "SET_ERROR", payload: "Failed to add friend" });
+        throw error;
       }
     },
-    [state.isOfflineMode, userService, localStorage],
+    [state.isOfflineMode, state.friends, userService, localStorage],
   );
 
   const updateProfile = useCallback(

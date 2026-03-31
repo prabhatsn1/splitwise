@@ -7,12 +7,15 @@ import {
   TextInput,
   Alert,
   SectionList,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
+import * as Contacts from "expo-contacts";
 import { useApp } from "../context/AppContext";
 import { User, FriendInvitation, RootStackParamList } from "../types";
+import { UserService } from "../services/userService";
 import { styles } from "../styles/screens/FriendsScreen.styles";
 
 type FriendsNavProp = StackNavigationProp<RootStackParamList>;
@@ -33,6 +36,16 @@ export default function FriendsScreen() {
   const [friendEmail, setFriendEmail] = useState("");
   const [friendPhone, setFriendPhone] = useState("");
   const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>("all");
+
+  // Contacts discovery
+  type ContactsResult = {
+    registered: User[];
+    notRegistered: { name: string; phone?: string }[];
+  };
+  const [contactsResult, setContactsResult] = useState<ContactsResult | null>(
+    null,
+  );
+  const [loadingContacts, setLoadingContacts] = useState(false);
 
   // Load invitations on mount
   useEffect(() => {
@@ -103,8 +116,110 @@ export default function FriendsScreen() {
       setFriendPhone("");
       setShowAddFriend(false);
       Alert.alert("Success", "Friend added successfully!");
-    } catch (error) {
-      Alert.alert("Error", "Failed to add friend. Please try again.");
+    } catch (error: any) {
+      if (error?.message === "already_friend") {
+        Alert.alert("Already friends", "You're already friends with this person.");
+      } else {
+        Alert.alert("Error", "Failed to add friend. Please try again.");
+      }
+    }
+  };
+
+  const handleFindContacts = async () => {
+    setLoadingContacts(true);
+    try {
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission required",
+          "Please allow access to contacts so we can find your friends.",
+        );
+        return;
+      }
+
+      const { data: deviceContacts } = await Contacts.getContactsAsync({
+        fields: [
+          Contacts.Fields.Emails,
+          Contacts.Fields.PhoneNumbers,
+          Contacts.Fields.Name,
+        ],
+      });
+
+      // Collect normalised emails and phone digits
+      const emailSet = new Set<string>();
+      const phoneSet = new Set<string>();
+
+      deviceContacts.forEach((c) => {
+        c.emails?.forEach((e) => {
+          if (e.email) emailSet.add(e.email.toLowerCase());
+        });
+        c.phoneNumbers?.forEach((p) => {
+          const digits = (p.number || "").replace(/\D/g, "");
+          if (digits.length >= 10) phoneSet.add(digits);
+        });
+      });
+
+      const svc = new UserService();
+      const registered = await svc.findRegisteredContacts(
+        Array.from(emailSet),
+        Array.from(phoneSet),
+      );
+
+      // Exclude yourself and people already added as friends
+      const myId = state.currentUser?.id;
+      const friendIds = new Set(state.friends.map((f) => f.id));
+      const newRegistered = registered.filter(
+        (u) => u.id !== myId && !friendIds.has(u.id),
+      );
+
+      // Contacts that didn't match any registered user
+      const registeredEmails = new Set(registered.map((u) => u.email.toLowerCase()));
+      const registeredPhones = new Set(
+        registered
+          .map((u) => (u.phone || "").replace(/\D/g, ""))
+          .filter(Boolean),
+      );
+
+      const notRegistered = deviceContacts
+        .filter((c) => {
+          const emailMatch = c.emails?.some((e) =>
+            registeredEmails.has((e.email || "").toLowerCase()),
+          );
+          const phoneMatch = c.phoneNumbers?.some((p) =>
+            registeredPhones.has((p.number || "").replace(/\D/g, "")),
+          );
+          return !emailMatch && !phoneMatch;
+        })
+        .slice(0, 15)
+        .map((c) => ({
+          name: c.name || "Unknown",
+          phone: c.phoneNumbers?.[0]?.number,
+        }));
+
+      setContactsResult({ registered: newRegistered, notRegistered });
+    } catch {
+      Alert.alert("Error", "Could not read contacts. Please try again.");
+    } finally {
+      setLoadingContacts(false);
+    }
+  };
+
+  const handleAddFromContacts = async (user: User) => {
+    try {
+      await addFriend({ name: user.name, email: user.email, phone: user.phone });
+      // Remove from discovery list
+      setContactsResult((prev) =>
+        prev
+          ? { ...prev, registered: prev.registered.filter((u) => u.id !== user.id) }
+          : prev,
+      );
+      Alert.alert("Added!", `${user.name} has been added as a friend.`);
+    } catch (error: any) {
+      if (error?.message === "already_friend") {
+        Alert.alert("Already friends", `You're already friends with ${user.name}.`);
+      } else {
+        Alert.alert("Error", "Could not add friend.");
+      }
     }
   };
 
@@ -296,50 +411,139 @@ export default function FriendsScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.friendsList}
         ListHeaderComponent={
-          pendingInvitations.length > 0 ? (
-            <View style={styles.invitationsSection}>
-              <Text style={styles.sectionTitle}>
-                Pending Invitations ({pendingInvitations.length})
-              </Text>
-              {pendingInvitations.map((inv) => (
-                <View key={inv.id} style={styles.invitationItem}>
-                  <View style={styles.invAvatar}>
-                    <Ionicons name="paper-plane" size={20} color="#fff" />
-                  </View>
-                  <View style={styles.friendDetails}>
-                    <Text style={styles.friendName}>{inv.toName}</Text>
-                    <Text style={styles.friendEmail}>{inv.toPhone}</Text>
-                    <Text style={styles.invStatus}>Invite sent</Text>
-                  </View>
-                  <View style={styles.invActions}>
-                    <TouchableOpacity
-                      onPress={() => handleResendInvitation(inv)}
-                      style={styles.invActionBtn}
-                    >
-                      <Ionicons name="refresh" size={18} color="#5bc5a7" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleAcceptInvitation(inv)}
-                      style={styles.invActionBtn}
-                    >
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={18}
-                        color="#4CAF50"
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleCancelInvitation(inv)}
-                      style={styles.invActionBtn}
-                    >
-                      <Ionicons name="close-circle" size={18} color="#F44336" />
-                    </TouchableOpacity>
-                  </View>
+          <>
+            {/* ── Contacts discovery results ── */}
+            {contactsResult && (
+              <View style={styles.contactsSection}>
+                <View style={styles.contactsHeader}>
+                  <Text style={styles.sectionTitle}>From your contacts</Text>
+                  <TouchableOpacity onPress={() => setContactsResult(null)}>
+                    <Ionicons name="close" size={18} color="#888" />
+                  </TouchableOpacity>
                 </View>
-              ))}
-              <Text style={styles.sectionTitle}>Friends</Text>
-            </View>
-          ) : null
+
+                {contactsResult.registered.length > 0 ? (
+                  <>
+                    <Text style={styles.contactsSubtitle}>
+                      Already on Splitwise
+                    </Text>
+                    {contactsResult.registered.map((user) => (
+                      <View key={user.id} style={styles.contactItem}>
+                        <View style={styles.avatar}>
+                          <Text style={styles.avatarText}>
+                            {user.name.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={styles.friendDetails}>
+                          <Text style={styles.friendName}>{user.name}</Text>
+                          <Text style={styles.friendEmail}>{user.email}</Text>
+                          <View style={styles.onAppBadge}>
+                            <Text style={styles.onAppBadgeText}>
+                              On Splitwise
+                            </Text>
+                          </View>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.addContactBtn}
+                          onPress={() => handleAddFromContacts(user)}
+                        >
+                          <Text style={styles.addContactBtnText}>Add</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </>
+                ) : (
+                  <Text style={styles.contactsEmpty}>
+                    All your contacts on Splitwise are already friends!
+                  </Text>
+                )}
+
+                {contactsResult.notRegistered.length > 0 && (
+                  <>
+                    <Text style={[styles.contactsSubtitle, { marginTop: 12 }]}>
+                      Not on Splitwise yet
+                    </Text>
+                    {contactsResult.notRegistered.map((c, i) => (
+                      <View key={i} style={styles.contactItem}>
+                        <View
+                          style={[styles.avatar, { backgroundColor: "#bbb" }]}
+                        >
+                          <Text style={styles.avatarText}>
+                            {c.name.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={styles.friendDetails}>
+                          <Text style={styles.friendName}>{c.name}</Text>
+                          {c.phone && (
+                            <Text style={styles.friendEmail}>{c.phone}</Text>
+                          )}
+                        </View>
+                        <TouchableOpacity
+                          style={[
+                            styles.addContactBtn,
+                            styles.inviteContactBtn,
+                          ]}
+                          onPress={() => navigation.navigate("InviteFriend")}
+                        >
+                          <Text style={styles.addContactBtnText}>Invite</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </>
+                )}
+              </View>
+            )}
+
+            {/* ── Pending invitations ── */}
+            {pendingInvitations.length > 0 && (
+              <View style={styles.invitationsSection}>
+                <Text style={styles.sectionTitle}>
+                  Pending Invitations ({pendingInvitations.length})
+                </Text>
+                {pendingInvitations.map((inv) => (
+                  <View key={inv.id} style={styles.invitationItem}>
+                    <View style={styles.invAvatar}>
+                      <Ionicons name="paper-plane" size={20} color="#fff" />
+                    </View>
+                    <View style={styles.friendDetails}>
+                      <Text style={styles.friendName}>{inv.toName}</Text>
+                      <Text style={styles.friendEmail}>{inv.toPhone}</Text>
+                      <Text style={styles.invStatus}>Invite sent</Text>
+                    </View>
+                    <View style={styles.invActions}>
+                      <TouchableOpacity
+                        onPress={() => handleResendInvitation(inv)}
+                        style={styles.invActionBtn}
+                      >
+                        <Ionicons name="refresh" size={18} color="#5bc5a7" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleAcceptInvitation(inv)}
+                        style={styles.invActionBtn}
+                      >
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={18}
+                          color="#4CAF50"
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleCancelInvitation(inv)}
+                        style={styles.invActionBtn}
+                      >
+                        <Ionicons
+                          name="close-circle"
+                          size={18}
+                          color="#F44336"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+                <Text style={styles.sectionTitle}>Friends</Text>
+              </View>
+            )}
+          </>
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
@@ -365,6 +569,17 @@ export default function FriendsScreen() {
             onPress={() => setShowAddFriend(true)}
           >
             <Ionicons name="person-add" size={22} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.fab, styles.fabSecondary]}
+            onPress={loadingContacts ? undefined : handleFindContacts}
+            disabled={loadingContacts}
+          >
+            {loadingContacts ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Ionicons name="people" size={22} color="#fff" />
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.fab}

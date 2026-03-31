@@ -183,6 +183,7 @@ export function useAuthActions(
             userData.email,
             userData.password,
             userData.name,
+            userData.phone,
           );
         } else {
           user = await userService.createUser(userData);
