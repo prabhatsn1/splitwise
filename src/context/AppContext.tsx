@@ -3,6 +3,7 @@ import React, {
   useContext,
   useReducer,
   useEffect,
+  useRef,
   ReactNode,
   useState,
 } from "react";
@@ -56,6 +57,81 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dataActions.loadFriends,
     dataActions.calculateUserBalance,
   );
+
+  // Keep a stable ref to the latest dataActions callbacks so Realtime
+  // handlers always call the most-recent version without re-subscribing.
+  const dataActionsRef = useRef(dataActions);
+  useEffect(() => {
+    dataActionsRef.current = dataActions;
+  });
+
+  // Set up Supabase Realtime subscriptions so every user sees live updates
+  // whenever another user adds/edits/deletes expenses, groups, or settlements.
+  useEffect(() => {
+    if (!state.currentUser || state.isOfflineMode) return;
+
+    let db: ReturnType<typeof DatabaseService.getInstance>;
+    try {
+      db = DatabaseService.getInstance();
+      if (!db.hasAuthenticatedUser()) return;
+    } catch {
+      return;
+    }
+
+    const client = db.getClient();
+
+    let expenseTimer: ReturnType<typeof setTimeout>;
+    let groupTimer: ReturnType<typeof setTimeout>;
+    let settlementTimer: ReturnType<typeof setTimeout>;
+
+    const refreshExpenses = () => {
+      clearTimeout(expenseTimer);
+      expenseTimer = setTimeout(() => {
+        dataActionsRef.current.loadUserExpenses();
+        dataActionsRef.current.calculateUserBalance();
+      }, 300);
+    };
+
+    const refreshGroups = () => {
+      clearTimeout(groupTimer);
+      groupTimer = setTimeout(() => {
+        dataActionsRef.current.loadUserGroups();
+      }, 300);
+    };
+
+    const refreshSettlements = () => {
+      clearTimeout(settlementTimer);
+      settlementTimer = setTimeout(() => {
+        dataActionsRef.current.calculateUserBalance();
+      }, 300);
+    };
+
+    const channel = client
+      .channel("db-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "expenses" },
+        refreshExpenses,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "groups" },
+        refreshGroups,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "settlements" },
+        refreshSettlements,
+      )
+      .subscribe();
+
+    return () => {
+      clearTimeout(expenseTimer);
+      clearTimeout(groupTimer);
+      clearTimeout(settlementTimer);
+      client.removeChannel(channel);
+    };
+  }, [state.currentUser?.id, state.isOfflineMode]);
 
   // Initialize app
   useEffect(() => {
