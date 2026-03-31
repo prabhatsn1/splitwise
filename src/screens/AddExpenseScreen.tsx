@@ -158,7 +158,10 @@ export default function AddExpenseScreen() {
   const currentGroup = state.groups.find((g) => g.id === selectedGroup);
   const availableMembers = selectedGroup
     ? currentGroup?.members || []
-    : [state.currentUser!, ...state.friends];
+    : [
+        state.currentUser!,
+        ...state.friends.filter((f) => f.id !== state.currentUser?.id),
+      ];
 
   React.useEffect(() => {
     if (selectedGroup && currentGroup) {
@@ -436,9 +439,12 @@ export default function AddExpenseScreen() {
     }
 
     const payer = availableMembers.find((m) => m.id === selectedPayer);
-    const splitMembers = availableMembers.filter((m) =>
-      selectedMembers.includes(m.id),
-    );
+    const seen = new Set<string>();
+    const splitMembers = availableMembers.filter((m) => {
+      if (!selectedMembers.includes(m.id) || seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
 
     if (!payer) {
       Alert.alert("Error", "Please select who paid");
