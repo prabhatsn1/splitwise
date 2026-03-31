@@ -81,11 +81,38 @@ export default function GroupsScreen() {
         <View style={styles.groupDetails}>
           <Text style={styles.groupName}>{group.name}</Text>
           <Text style={styles.groupDescription}>{group.description}</Text>
-          <Text style={styles.groupMembers}>
-            {group.members.length} member{group.members.length !== 1 ? "s" : ""}{" "}
-            • {groupExpenses.length} expense
-            {groupExpenses.length !== 1 ? "s" : ""}
-          </Text>
+          <View style={styles.memberAvatarsRow}>
+            {group.members.slice(0, 4).map((member, index) => (
+              <View
+                key={member.id}
+                style={[
+                  styles.memberAvatar,
+                  { marginLeft: index === 0 ? 0 : -8 },
+                ]}
+              >
+                <Text style={styles.memberAvatarText}>
+                  {member.name.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            ))}
+            {group.members.length > 4 && (
+              <View
+                style={[
+                  styles.memberAvatar,
+                  styles.memberAvatarMore,
+                  { marginLeft: -8 },
+                ]}
+              >
+                <Text style={styles.memberAvatarMoreText}>
+                  +{group.members.length - 4}
+                </Text>
+              </View>
+            )}
+            <Text style={styles.expenseCount}>
+              • {groupExpenses.length} expense
+              {groupExpenses.length !== 1 ? "s" : ""}
+            </Text>
+          </View>
         </View>
         <View style={styles.groupBalance}>
           {balance !== 0 && (
