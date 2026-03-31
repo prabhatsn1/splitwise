@@ -88,6 +88,40 @@ export const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f5f5f5",
   },
+  memberAvatarsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    paddingVertical: 4,
+  },
+  memberAvatarChip: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#5bc5a7",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  memberAvatarChipText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  memberAvatarOverflow: {
+    backgroundColor: "#b2dfdb",
+  },
+  memberAvatarOverflowText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#00796b",
+  },
+  memberCountLabel: {
+    fontSize: 13,
+    color: "#888",
+    marginLeft: 10,
+  },
   memberAvatar: {
     width: 40,
     height: 40,
