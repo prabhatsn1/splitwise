@@ -54,9 +54,44 @@ export class UserService {
     email: string,
     password: string,
     name: string,
+    phone?: string,
   ): Promise<User> {
     const db = DatabaseService.getInstance();
     const client = db.getClient();
+
+    // Check email uniqueness before attempting auth signup
+    const { data: existingEmail } = await client
+      .from("users")
+      .select("user_id")
+      .ilike("email", email)
+      .limit(1);
+
+    if (existingEmail && existingEmail.length > 0) {
+      throw new NetworkError(
+        "validation",
+        "An account with this email address is already registered. Please log in instead.",
+        false,
+        "signup",
+      );
+    }
+
+    // Check phone uniqueness if provided
+    if (phone) {
+      const { data: existingPhone } = await client
+        .from("users")
+        .select("user_id")
+        .eq("phone", phone)
+        .limit(1);
+
+      if (existingPhone && existingPhone.length > 0) {
+        throw new NetworkError(
+          "validation",
+          "This phone number is already associated with another account.",
+          false,
+          "signup",
+        );
+      }
+    }
 
     const { data: authData, error: authError } = await client.auth.signUp({
       email,
@@ -79,6 +114,7 @@ export class UserService {
       user_id: userId,
       name,
       email: email.toLowerCase(),
+      phone: phone || null,
       created_at: now,
       updated_at: now,
     });
@@ -87,7 +123,7 @@ export class UserService {
       throw new NetworkError("general", insertError.message, false, "signup");
     }
 
-    const user: User = { id: userId, name, email: email.toLowerCase() };
+    const user: User = { id: userId, name, email: email.toLowerCase(), phone };
     await this.localStorage.saveUser(user);
     return user;
   }
@@ -135,19 +171,16 @@ export class UserService {
     if (this.isSupabaseAvailable()) {
       const client = this.getClient();
 
+      // If the user already has an account, return their existing profile
+      // so callers can link them as a friend instead of failing.
       const { data: existing } = await client
         .from("users")
-        .select("id")
+        .select("*")
         .ilike("email", userData.email)
         .limit(1);
 
       if (existing && existing.length > 0) {
-        throw new NetworkError(
-          "validation",
-          "An account with this email already exists.",
-          false,
-          "signup",
-        );
+        return this.toUser(existing[0] as UserRow);
       }
 
       const userId = this.generateUserId();
@@ -183,10 +216,59 @@ export class UserService {
     const existingUser = users.find(
       (u) => u.email.toLowerCase() === userData.email.toLowerCase(),
     );
-    if (existingUser) throw new Error("User with this email already exists");
+    if (existingUser) return existingUser;
     const user: User = { ...userData, id: this.generateUserId() };
     await this.localStorage.addFriend(user);
     return user;
+  }
+
+  /**
+   * Given arrays of normalised emails and phone numbers, return all
+   * registered users whose profile matches any of them.
+   * Used for "find which of your contacts are already on the app".
+   */
+  async findRegisteredContacts(
+    emails: string[],
+    phones: string[],
+  ): Promise<User[]> {
+    if (!this.isSupabaseAvailable()) return [];
+    if (emails.length === 0 && phones.length === 0) return [];
+
+    const client = this.getClient();
+    const results: User[] = [];
+    const seenIds = new Set<string>();
+
+    const addUnique = (rows: any[]) => {
+      (rows || []).forEach((row) => {
+        const u = this.toUser(row as UserRow);
+        if (!seenIds.has(u.id)) {
+          seenIds.add(u.id);
+          results.push(u);
+        }
+      });
+    };
+
+    // Cap to avoid excessively large queries
+    const emailSlice = emails.slice(0, 200);
+    const phoneSlice = phones.slice(0, 200);
+
+    if (emailSlice.length > 0) {
+      const { data } = await client
+        .from("users")
+        .select("*")
+        .in("email", emailSlice);
+      addUnique(data || []);
+    }
+
+    if (phoneSlice.length > 0) {
+      const { data } = await client
+        .from("users")
+        .select("*")
+        .in("phone", phoneSlice);
+      addUnique(data || []);
+    }
+
+    return results;
   }
 
   async getUserById(id: string): Promise<User | null> {
@@ -281,6 +363,24 @@ export class UserService {
       return db.isConnected();
     } catch {
       return false;
+    }
+  }
+
+  async sendPasswordResetEmail(email: string): Promise<void> {
+    const db = DatabaseService.getInstance();
+    const client = db.getClient();
+
+    const { error } = await client.auth.resetPasswordForEmail(
+      email.toLowerCase().trim(),
+    );
+
+    if (error) {
+      throw new NetworkError(
+        "auth",
+        error.message,
+        false,
+        "login",
+      );
     }
   }
 
