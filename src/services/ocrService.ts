@@ -45,10 +45,19 @@ export async function parseReceipt(imageBase64: string): Promise<OcrResult> {
     formData.append("scale", "true");
     formData.append("OCREngine", "2");
 
-    const response = await fetch(OCR_API_URL, {
-      method: "POST",
-      body: formData,
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
+    let response: Response;
+    try {
+      response = await fetch(OCR_API_URL, {
+        method: "POST",
+        body: formData,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       throw new Error(`OCR API returned ${response.status}`);
