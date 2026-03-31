@@ -75,7 +75,7 @@ export default function AnalyticsScreen() {
       const budgets: Record<string, number> = storedBudgets
         ? JSON.parse(storedBudgets)
         : {};
-      
+
       // Convert string values to numbers
       const defaultBudgets: Record<string, number> = {};
       Object.keys(budgets).forEach((key) => {

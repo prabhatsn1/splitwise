@@ -425,13 +425,16 @@ export function useAuthActions(
         for (const group of offlineGroups) {
           if (group.id.startsWith("offline_")) {
             try {
-              const newGroup = await groupService.createGroup({
-                name: group.name,
-                description: group.description,
-                members: group.members,
-                createdAt: group.createdAt,
-                simplifyDebts: group.simplifyDebts,
-              }, user.id);
+              const newGroup = await groupService.createGroup(
+                {
+                  name: group.name,
+                  description: group.description,
+                  members: group.members,
+                  createdAt: group.createdAt,
+                  simplifyDebts: group.simplifyDebts,
+                },
+                user.id,
+              );
               migratedGroups.push(group.id);
               await localStorage.updateGroupReferences(group.id, newGroup.id);
             } catch (error) {

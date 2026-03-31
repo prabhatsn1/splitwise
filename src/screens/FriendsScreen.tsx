@@ -287,7 +287,7 @@ export default function FriendsScreen() {
         const matchesEmail = friend.email.toLowerCase().includes(query);
         if (!matchesName && !matchesEmail) return false;
       }
-      
+
       // Balance filter
       if (balanceFilter === "all") return true;
       const balance = calculateFriendBalance(friend);
@@ -296,7 +296,13 @@ export default function FriendsScreen() {
       if (balanceFilter === "settled") return balance === 0;
       return true;
     });
-  }, [state.friends, state.expenses, state.balances, balanceFilter, searchQuery]);
+  }, [
+    state.friends,
+    state.expenses,
+    state.balances,
+    balanceFilter,
+    searchQuery,
+  ]);
 
   const balanceFilters: { key: BalanceFilter; label: string }[] = [
     { key: "all", label: "All" },
@@ -365,7 +371,12 @@ export default function FriendsScreen() {
     <View style={styles.container}>
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+        <Ionicons
+          name="search"
+          size={20}
+          color="#999"
+          style={styles.searchIcon}
+        />
         <TextInput
           style={styles.searchInput}
           value={searchQuery}

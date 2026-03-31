@@ -61,7 +61,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             <Text style={styles.message}>
               {this.state.error?.message || "An unexpected error occurred"}
             </Text>
-            
+
             {__DEV__ && this.state.errorInfo && (
               <View style={styles.debugContainer}>
                 <Text style={styles.debugTitle}>Debug Info:</Text>
@@ -71,10 +71,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               </View>
             )}
 
-            <TouchableOpacity
-              style={styles.button}
-              onPress={this.handleReset}
-            >
+            <TouchableOpacity style={styles.button} onPress={this.handleReset}>
               <Ionicons name="refresh" size={20} color="#fff" />
               <Text style={styles.buttonText}>Try Again</Text>
             </TouchableOpacity>

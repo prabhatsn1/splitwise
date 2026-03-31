@@ -62,7 +62,7 @@ export default function BudgetSettingsScreen() {
 
   const totalBudget = Object.values(budgets).reduce(
     (sum, val) => sum + (parseFloat(val) || 0),
-    0
+    0,
   );
 
   return (
@@ -128,9 +128,7 @@ export default function BudgetSettingsScreen() {
               style={{
                 padding: 16,
                 borderBottomWidth:
-                  index < CATEGORIES.length - 1
-                    ? StyleSheet.hairlineWidth
-                    : 0,
+                  index < CATEGORIES.length - 1 ? StyleSheet.hairlineWidth : 0,
                 borderBottomColor: colors.borderLight,
               }}
             >

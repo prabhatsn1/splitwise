@@ -26,7 +26,10 @@ const AppContext = createContext<AppContextType | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [errorModalVisible, setErrorModalVisible] = useState(false);
-  const [errorDetails, setErrorDetails] = useState({ title: "Error", message: "" });
+  const [errorDetails, setErrorDetails] = useState({
+    title: "Error",
+    message: "",
+  });
 
   // Initialize services
   const userService = new UserService();
@@ -193,7 +196,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         console.error("Failed to initialize app:", error);
         setErrorDetails({
           title: "Initialization Error",
-          message: "Failed to initialize the app. Please restart the application.",
+          message:
+            "Failed to initialize the app. Please restart the application.",
         });
         setErrorModalVisible(true);
         dispatch({ type: "SET_LOADING", payload: false });
@@ -220,7 +224,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     errorHandler.setErrorCallback((error: Error, context?: string) => {
       setErrorDetails({
         title: context || "Unexpected Error",
-        message: error.message || "An unexpected error occurred. Please try again.",
+        message:
+          error.message || "An unexpected error occurred. Please try again.",
       });
       setErrorModalVisible(true);
     });
