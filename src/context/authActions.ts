@@ -429,10 +429,9 @@ export function useAuthActions(
                 name: group.name,
                 description: group.description,
                 members: group.members,
-                createdBy: user.id,
                 createdAt: group.createdAt,
                 simplifyDebts: group.simplifyDebts,
-              });
+              }, user.id);
               migratedGroups.push(group.id);
               await localStorage.updateGroupReferences(group.id, newGroup.id);
             } catch (error) {
@@ -460,9 +459,7 @@ export function useAuthActions(
                 currency: expense.currency,
                 tags: expense.tags,
                 location: expense.location,
-                isRecurring: expense.isRecurring,
-                recurringFrequency: expense.recurringFrequency,
-                recurringEndDate: expense.recurringEndDate,
+                recurring: expense.recurring,
               });
             } catch (error) {
               console.error("Failed to migrate expense:", expense, error);
