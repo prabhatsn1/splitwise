@@ -1,5 +1,12 @@
 import React, { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Modal, Alert } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Modal,
+  Alert,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -55,51 +62,49 @@ export default function GroupDetailsScreen() {
 
   const handleRemoveMember = async (member: User) => {
     if (member.id === state.currentUser?.id) {
-      Alert.alert(
-        "Leave Group",
-        "Are you sure you want to leave this group?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Leave",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                await removeMemberFromGroup(groupId, member.id);
-                navigation.goBack();
-              } catch (error: any) {
-                Alert.alert("Cannot Leave Group", error.message || "Failed to leave group");
-              }
-            },
+      Alert.alert("Leave Group", "Are you sure you want to leave this group?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Leave",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await removeMemberFromGroup(groupId, member.id);
+              navigation.goBack();
+            } catch (error: any) {
+              Alert.alert(
+                "Cannot Leave Group",
+                error.message || "Failed to leave group",
+              );
+            }
           },
-        ]
-      );
+        },
+      ]);
     } else {
-      Alert.alert(
-        "Remove Member",
-        `Remove ${member.name} from this group?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Remove",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                await removeMemberFromGroup(groupId, member.id);
-                Alert.alert("Success", `${member.name} removed from group`);
-              } catch (error: any) {
-                Alert.alert("Cannot Remove Member", error.message || "Failed to remove member");
-              }
-            },
+      Alert.alert("Remove Member", `Remove ${member.name} from this group?`, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await removeMemberFromGroup(groupId, member.id);
+              Alert.alert("Success", `${member.name} removed from group`);
+            } catch (error: any) {
+              Alert.alert(
+                "Cannot Remove Member",
+                error.message || "Failed to remove member",
+              );
+            }
           },
-        ]
-      );
+        },
+      ]);
     }
   };
 
   // Get friends not in the group
   const availableFriends = state.friends.filter(
-    (friend) => !group?.members.some((m) => m.id === friend.id)
+    (friend) => !group?.members.some((m) => m.id === friend.id),
   );
 
   const myBalance = state.currentUser ? getMemberBalance(state.currentUser) : 0;
@@ -187,55 +192,38 @@ export default function GroupDetailsScreen() {
             <Ionicons name="person-add" size={20} color="#5bc5a7" />
           </TouchableOpacity>
         </View>
-        {group.members.map((member) => {
-          const balance = getMemberBalance(member);
-          const isCurrentUser = member.id === state.currentUser?.id;
-
-          return (
-            <View key={member.id} style={styles.memberRow}>
-              <View style={styles.memberAvatar}>
-                <Text style={styles.memberAvatarText}>
-                  {member.name.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-              <View style={styles.memberInfo}>
-                <Text style={styles.memberName}>
-                  {isCurrentUser ? `${member.name} (You)` : member.name}
-                </Text>
-                <Text style={styles.memberEmail}>{member.email}</Text>
-              </View>
-              <View style={styles.memberBalance}>
-                {balance === 0 ? (
-                  <Text style={styles.settledBadge}>Settled</Text>
-                ) : (
-                  <>
-                    <Text
-                      style={[
-                        styles.memberBalanceAmount,
-                        { color: balance > 0 ? "#4CAF50" : "#F44336" },
-                      ]}
-                    >
-                      ₹{Math.abs(balance).toFixed(2)}
-                    </Text>
-                    <Text style={styles.memberBalanceLabel}>
-                      {balance > 0 ? "gets back" : "owes"}
-                    </Text>
-                  </>
-                )}
-              </View>
-              <TouchableOpacity
-                style={styles.removeMemberButton}
-                onPress={() => handleRemoveMember(member)}
-              >
-                <Ionicons
-                  name={isCurrentUser ? "exit-outline" : "close-circle"}
-                  size={24}
-                  color="#F44336"
-                />
-              </TouchableOpacity>
+        <View style={styles.memberAvatarsRow}>
+          {group.members.slice(0, 6).map((member, index) => (
+            <TouchableOpacity
+              key={member.id}
+              style={[
+                styles.memberAvatarChip,
+                { marginLeft: index === 0 ? 0 : -10 },
+              ]}
+              onPress={() => handleRemoveMember(member)}
+            >
+              <Text style={styles.memberAvatarChipText}>
+                {member.name.charAt(0).toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          {group.members.length > 6 && (
+            <View
+              style={[
+                styles.memberAvatarChip,
+                styles.memberAvatarOverflow,
+                { marginLeft: -10 },
+              ]}
+            >
+              <Text style={styles.memberAvatarOverflowText}>
+                +{group.members.length - 6}
+              </Text>
             </View>
-          );
-        })}
+          )}
+          <Text style={styles.memberCountLabel}>
+            {group.members.length} member{group.members.length !== 1 ? "s" : ""}
+          </Text>
+        </View>
       </View>
 
       {/* Expenses in this group */}
@@ -327,7 +315,9 @@ export default function GroupDetailsScreen() {
             <ScrollView style={styles.modalBody}>
               {availableFriends.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyText}>All friends are already in this group</Text>
+                  <Text style={styles.emptyText}>
+                    All friends are already in this group
+                  </Text>
                 </View>
               ) : (
                 availableFriends.map((friend) => (
