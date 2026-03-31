@@ -29,8 +29,18 @@ export default function CreateGroupScreen() {
     state.currentUser?.id || "",
   ]);
   const [simplifyDebts, setSimplifyDebts] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const availableMembers = [state.currentUser!, ...state.friends];
+
+  const filteredMembers = availableMembers.filter((member) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      member.name.toLowerCase().includes(query) ||
+      member.email.toLowerCase().includes(query)
+    );
+  });
 
   const handleMemberToggle = (userId: string) => {
     if (userId === state.currentUser?.id) {
@@ -115,8 +125,27 @@ export default function CreateGroupScreen() {
             Select friends to add to this group
           </Text>
 
+          {/* Search Bar */}
+          {availableMembers.length > 3 && (
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={18} color="#999" />
+              <TextInput
+                style={styles.searchInput}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search members..."
+                placeholderTextColor="#999"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery("")}>
+                  <Ionicons name="close-circle" size={18} color="#999" />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
           <View style={styles.membersList}>
-            {availableMembers.map((member) => {
+            {filteredMembers.map((member) => {
               const isCurrentUser = member.id === state.currentUser?.id;
               const isSelected = selectedMembers.includes(member.id);
 

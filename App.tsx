@@ -23,6 +23,7 @@ import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 // Import components
 import LoadingScreen from "./src/components/LoadingScreen";
 import AnimatedSplashScreen from "./src/components/AnimatedSplashScreen";
+import ErrorBoundary from "./src/components/ErrorBoundary";
 
 // Import screens
 import LoginScreen from "./src/screens/LoginScreen";
@@ -39,6 +40,7 @@ import GroupDetailsScreen from "./src/screens/GroupDetailsScreen";
 import GroupAnalyticsScreen from "./src/screens/GroupAnalyticsScreen";
 import AnalyticsScreen from "./src/screens/AnalyticsScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
+import BudgetSettingsScreen from "./src/screens/BudgetSettingsScreen";
 import InviteFriendScreen from "./src/screens/InviteFriendScreen";
 
 // Import services
@@ -274,6 +276,11 @@ function AppContent() {
           options={{ title: "Settings" }}
         />
         <Stack.Screen
+          name="BudgetSettings"
+          component={BudgetSettingsScreen}
+          options={{ title: "Monthly Budgets" }}
+        />
+        <Stack.Screen
           name="InviteFriend"
           component={InviteFriendScreen}
           options={{ title: "Invite Friend" }}
@@ -334,10 +341,12 @@ export default function App() {
   }
 
   return (
-    <ThemeProvider>
-      <AppProvider>
-        <AppContent />
-      </AppProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AppProvider>
+          <AppContent />
+        </AppProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

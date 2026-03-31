@@ -125,6 +125,9 @@ export interface AppContextType {
   markInvitationAccepted: (invitationId: string) => Promise<void>;
   // Balance actions
   calculateUserBalance: () => Promise<void>;
+  // Group member actions
+  addMemberToGroup: (groupId: string, member: User) => Promise<void>;
+  removeMemberFromGroup: (groupId: string, memberId: string) => Promise<void>;
 }
 
 // Initial state

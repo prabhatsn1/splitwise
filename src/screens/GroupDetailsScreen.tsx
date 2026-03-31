@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
+import React, { useState } from "react";
+import { View, Text, ScrollView, TouchableOpacity, Modal, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -13,8 +13,9 @@ type GroupDetailsNavProp = StackNavigationProp<RootStackParamList>;
 export default function GroupDetailsScreen() {
   const route = useRoute<GroupDetailsRouteProp>();
   const navigation = useNavigation<GroupDetailsNavProp>();
-  const { state } = useApp();
+  const { state, addMemberToGroup, removeMemberFromGroup } = useApp();
   const { groupId } = route.params;
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
 
   const group = state.groups.find((g) => g.id === groupId);
   const groupExpenses = state.expenses
@@ -42,7 +43,65 @@ export default function GroupDetailsScreen() {
     return owedToMember - memberOwes;
   };
 
-  // My balance in this group (+ve = owed, -ve = owe)
+  const handleAddMember = async (friend: User) => {
+    try {
+      await addMemberToGroup(groupId, friend);
+      setShowAddMemberModal(false);
+      Alert.alert("Success", `${friend.name} added to group`);
+    } catch (error) {
+      Alert.alert("Error", "Failed to add member to group");
+    }
+  };
+
+  const handleRemoveMember = async (member: User) => {
+    if (member.id === state.currentUser?.id) {
+      Alert.alert(
+        "Leave Group",
+        "Are you sure you want to leave this group?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Leave",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await removeMemberFromGroup(groupId, member.id);
+                navigation.goBack();
+              } catch (error: any) {
+                Alert.alert("Cannot Leave Group", error.message || "Failed to leave group");
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        "Remove Member",
+        `Remove ${member.name} from this group?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Remove",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await removeMemberFromGroup(groupId, member.id);
+                Alert.alert("Success", `${member.name} removed from group`);
+              } catch (error: any) {
+                Alert.alert("Cannot Remove Member", error.message || "Failed to remove member");
+              }
+            },
+          },
+        ]
+      );
+    }
+  };
+
+  // Get friends not in the group
+  const availableFriends = state.friends.filter(
+    (friend) => !group?.members.some((m) => m.id === friend.id)
+  );
+
   const myBalance = state.currentUser ? getMemberBalance(state.currentUser) : 0;
 
   const totalGroupSpend = groupExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -119,7 +178,15 @@ export default function GroupDetailsScreen() {
 
       {/* Members & balances */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Members</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Members</Text>
+          <TouchableOpacity
+            style={styles.addMemberButton}
+            onPress={() => setShowAddMemberModal(true)}
+          >
+            <Ionicons name="person-add" size={20} color="#5bc5a7" />
+          </TouchableOpacity>
+        </View>
         {group.members.map((member) => {
           const balance = getMemberBalance(member);
           const isCurrentUser = member.id === state.currentUser?.id;
@@ -156,6 +223,16 @@ export default function GroupDetailsScreen() {
                   </>
                 )}
               </View>
+              <TouchableOpacity
+                style={styles.removeMemberButton}
+                onPress={() => handleRemoveMember(member)}
+              >
+                <Ionicons
+                  name={isCurrentUser ? "exit-outline" : "close-circle"}
+                  size={24}
+                  color="#F44336"
+                />
+              </TouchableOpacity>
             </View>
           );
         })}
@@ -231,6 +308,51 @@ export default function GroupDetailsScreen() {
         <Ionicons name="analytics" size={20} color="#fff" />
         <Text style={styles.analyticsButtonText}>View Group Analytics</Text>
       </TouchableOpacity>
+
+      {/* Add Member Modal */}
+      <Modal
+        visible={showAddMemberModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAddMemberModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Member</Text>
+              <TouchableOpacity onPress={() => setShowAddMemberModal(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              {availableFriends.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyText}>All friends are already in this group</Text>
+                </View>
+              ) : (
+                availableFriends.map((friend) => (
+                  <TouchableOpacity
+                    key={friend.id}
+                    style={styles.friendRow}
+                    onPress={() => handleAddMember(friend)}
+                  >
+                    <View style={styles.friendAvatar}>
+                      <Text style={styles.friendAvatarText}>
+                        {friend.name.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.friendInfo}>
+                      <Text style={styles.friendName}>{friend.name}</Text>
+                      <Text style={styles.friendEmail}>{friend.email}</Text>
+                    </View>
+                    <Ionicons name="add-circle" size={24} color="#5bc5a7" />
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

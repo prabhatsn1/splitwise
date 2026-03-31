@@ -4,12 +4,15 @@ import React, {
   useReducer,
   useEffect,
   ReactNode,
+  useState,
 } from "react";
 import { UserService } from "../services/userService";
 import { GroupService } from "../services/groupService";
 import { ExpenseService } from "../services/expenseService";
 import DatabaseService from "../services/database";
 import LocalStorageService from "../services/localStorageService";
+import ErrorModal from "../components/ErrorModal";
+import GlobalErrorHandler from "../utils/errorHandler";
 
 // Import modular components
 import { AppContextType, initialState } from "./types";
@@ -21,6 +24,8 @@ const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorDetails, setErrorDetails] = useState({ title: "Error", message: "" });
 
   // Initialize services
   const userService = new UserService();
@@ -110,12 +115,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
         dispatch({ type: "SET_LOADING", payload: false });
       } catch (error) {
         console.error("Failed to initialize app:", error);
-        dispatch({ type: "SET_ERROR", payload: "Failed to initialize app" });
+        setErrorDetails({
+          title: "Initialization Error",
+          message: "Failed to initialize the app. Please restart the application.",
+        });
+        setErrorModalVisible(true);
+        dispatch({ type: "SET_LOADING", payload: false });
       }
     };
 
     initializeApp();
   }, []);
+
+  // Watch for errors in state and show modal
+  useEffect(() => {
+    if (state.error) {
+      setErrorDetails({
+        title: "Error",
+        message: state.error,
+      });
+      setErrorModalVisible(true);
+    }
+  }, [state.error]);
+
+  // Setup global error handler
+  useEffect(() => {
+    const errorHandler = GlobalErrorHandler.getInstance();
+    errorHandler.setErrorCallback((error: Error, context?: string) => {
+      setErrorDetails({
+        title: context || "Unexpected Error",
+        message: error.message || "An unexpected error occurred. Please try again.",
+      });
+      setErrorModalVisible(true);
+    });
+  }, []);
+
+  const handleDismissError = () => {
+    setErrorModalVisible(false);
+    dispatch({ type: "SET_ERROR", payload: null });
+  };
 
   const contextValue: AppContextType = {
     state,
@@ -125,7 +163,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>
+    <AppContext.Provider value={contextValue}>
+      {children}
+      <ErrorModal
+        visible={errorModalVisible}
+        title={errorDetails.title}
+        message={errorDetails.message}
+        onDismiss={handleDismissError}
+      />
+    </AppContext.Provider>
   );
 }
 

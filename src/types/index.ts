@@ -185,6 +185,12 @@ export interface SimplifiedDebt {
   amount: number;
 }
 
+// Budget settings
+export interface CategoryBudget {
+  category: string;
+  monthlyLimit: number;
+}
+
 export type RootStackParamList = {
   Main: undefined;
   AddExpense: { groupId?: string };
@@ -195,6 +201,7 @@ export type RootStackParamList = {
   SettleUp: { userId: string };
   Analytics: undefined;
   Settings: undefined;
+  BudgetSettings: undefined;
   InviteFriend: undefined;
 };
 

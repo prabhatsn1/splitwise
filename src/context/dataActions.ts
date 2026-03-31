@@ -701,6 +701,68 @@ export function useDataActions(
     [dispatch],
   );
 
+  const addMemberToGroup = useCallback(
+    async (groupId: string, member: User): Promise<void> => {
+      try {
+        const updatedGroup = await groupService.addMemberToGroup(groupId, member);
+        if (updatedGroup) {
+          dispatch({ type: "UPDATE_GROUP", payload: updatedGroup });
+          await localStorage.saveGroups(
+            state.groups.map((g) => (g.id === groupId ? updatedGroup : g))
+          );
+        }
+      } catch (error) {
+        console.error("Failed to add member:", error);
+        dispatch({ type: "SET_ERROR", payload: "Failed to add member to group" });
+        throw error;
+      }
+    },
+    [groupService, localStorage, state.groups]
+  );
+
+  const removeMemberFromGroup = useCallback(
+    async (groupId: string, memberId: string): Promise<void> => {
+      try {
+        const group = state.groups.find((g) => g.id === groupId);
+        if (!group) throw new Error("Group not found");
+
+        // Calculate member's balance in the group
+        const groupExpenses = state.expenses.filter((e) => e.groupId === groupId);
+        let memberBalance = 0;
+
+        groupExpenses.forEach((expense) => {
+          const memberSplit = expense.splits.find((s) => s.userId === memberId);
+          if (!memberSplit) return;
+
+          if (expense.paidBy.id === memberId) {
+            memberBalance += expense.amount - (memberSplit.amount ?? 0);
+          } else {
+            memberBalance -= memberSplit.amount ?? 0;
+          }
+        });
+
+        // Prevent removal if member has unsettled balance
+        if (Math.abs(memberBalance) > 0.01) {
+          throw new Error(
+            `Cannot remove member. They have an unsettled balance of ₹${Math.abs(memberBalance).toFixed(2)}`
+          );
+        }
+
+        const updatedGroup = await groupService.removeMemberFromGroup(groupId, memberId);
+        if (updatedGroup) {
+          dispatch({ type: "UPDATE_GROUP", payload: updatedGroup });
+          await localStorage.saveGroups(
+            state.groups.map((g) => (g.id === groupId ? updatedGroup : g))
+          );
+        }
+      } catch (error) {
+        console.error("Failed to remove member:", error);
+        throw error;
+      }
+    },
+    [groupService, localStorage, state.groups, state.expenses]
+  );
+
   return {
     loadUserGroups,
     createGroup,
@@ -721,5 +783,7 @@ export function useDataActions(
     cancelInvitation,
     resendInvitation,
     markInvitationAccepted,
+    addMemberToGroup,
+    removeMemberFromGroup,
   };
 }

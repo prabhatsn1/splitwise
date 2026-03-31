@@ -36,6 +36,7 @@ export default function FriendsScreen() {
   const [friendEmail, setFriendEmail] = useState("");
   const [friendPhone, setFriendPhone] = useState("");
   const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Contacts discovery
   type ContactsResult = {
@@ -279,6 +280,15 @@ export default function FriendsScreen() {
 
   const filteredFriends = useMemo(() => {
     return state.friends.filter((friend) => {
+      // Search filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const matchesName = friend.name.toLowerCase().includes(query);
+        const matchesEmail = friend.email.toLowerCase().includes(query);
+        if (!matchesName && !matchesEmail) return false;
+      }
+      
+      // Balance filter
       if (balanceFilter === "all") return true;
       const balance = calculateFriendBalance(friend);
       if (balanceFilter === "owes_you") return balance > 0;
@@ -286,7 +296,7 @@ export default function FriendsScreen() {
       if (balanceFilter === "settled") return balance === 0;
       return true;
     });
-  }, [state.friends, state.expenses, state.balances, balanceFilter]);
+  }, [state.friends, state.expenses, state.balances, balanceFilter, searchQuery]);
 
   const balanceFilters: { key: BalanceFilter; label: string }[] = [
     { key: "all", label: "All" },
@@ -353,6 +363,23 @@ export default function FriendsScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search friends..."
+          placeholderTextColor="#999"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery("")}>
+            <Ionicons name="close-circle" size={20} color="#999" />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* Balance Filter Chips */}
       <View style={styles.filterRow}>
         {balanceFilters.map((f) => (

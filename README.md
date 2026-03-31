@@ -21,6 +21,7 @@ A full-featured React Native expense sharing application built with Expo, featur
 - **Network-Aware**: Real-time connectivity monitoring with automatic retry on reconnection
 - **Location-Aware Expenses**: Attach GPS coordinates and query expenses by geographic radius
 - **TypeScript Support**: Full type safety with strict mode throughout the application
+- **Error Handling**: Global error boundary and modal system prevents crashes with user-friendly error messages
 
 ## Tech Stack
 
@@ -129,6 +130,8 @@ src/
 ├── components/
 │   ├── CategoryPieChart.tsx         # Horizontal bar chart for category breakdown
 │   ├── DebtSimplificationView.tsx   # Visual flow diagram for simplified debts
+│   ├── ErrorBoundary.tsx            # React error boundary to catch component errors
+│   ├── ErrorModal.tsx               # Reusable error modal for user-friendly error display
 │   ├── LoadingScreen.tsx            # Loading and error states component
 │   ├── MonthlySpendingChart.tsx     # Vertical bar chart for monthly spending
 │   ├── ReceiptCamera.tsx            # Full-screen camera for receipt scanning
@@ -184,6 +187,12 @@ src/
 │   └── index.ts                     # Style exports
 └── types/
     └── index.ts                     # TypeScript type definitions
+```
+
+**Additional Utilities:**
+```
+src/utils/
+└── errorHandler.ts                  # Global error handler for unhandled errors
 ```
 
 ### Key Dependencies

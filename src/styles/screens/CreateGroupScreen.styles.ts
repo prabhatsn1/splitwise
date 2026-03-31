@@ -22,6 +22,23 @@ export const styles = StyleSheet.create({
     color: "#666",
     marginBottom: 12,
   },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 15,
+    color: "#333",
+  },
   input: {
     backgroundColor: "#fff",
     borderWidth: 1,

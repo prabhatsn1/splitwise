@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { ScrollView, View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useApp } from "../context/AppContext";
 import { useTheme } from "../context/ThemeContext";
 import {
@@ -37,7 +38,7 @@ export default function AnalyticsScreen() {
     calculateAnalytics();
   }, [state.expenses, state.friends, state.currentUser]);
 
-  const calculateAnalytics = () => {
+  const calculateAnalytics = async () => {
     if (!state.currentUser) {
       setLoading(false);
       return;
@@ -69,16 +70,21 @@ export default function AnalyticsScreen() {
       );
       setFrequencyData(frequency);
 
-      // Default budgets per category — in a full app these would come from Settings
-      const defaultBudgets: Record<string, number> = {
-        Food: 5000,
-        Transport: 2000,
-        Entertainment: 3000,
-        Bills: 5000,
-        Shopping: 4000,
-        Travel: 5000,
-        Other: 2000,
-      };
+      // Load budgets from AsyncStorage
+      const storedBudgets = await AsyncStorage.getItem("@splitwise_budgets");
+      const budgets: Record<string, number> = storedBudgets
+        ? JSON.parse(storedBudgets)
+        : {};
+      
+      // Convert string values to numbers
+      const defaultBudgets: Record<string, number> = {};
+      Object.keys(budgets).forEach((key) => {
+        const value = parseFloat(budgets[key] as any);
+        if (!isNaN(value) && value > 0) {
+          defaultBudgets[key] = value;
+        }
+      });
+
       const budget = AnalyticsService.calculateBudgetComparison(
         state.expenses,
         state.currentUser.id,

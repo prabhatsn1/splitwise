@@ -245,6 +245,10 @@ export default function SettingsScreen() {
     ]);
   };
 
+  const handleBudgetSettings = () => {
+    navigation.navigate("BudgetSettings");
+  };
+
   const handleExportCSV = async () => {
     try {
       await exportToCSV(state.expenses);
@@ -412,6 +416,14 @@ export default function SettingsScreen() {
           label="Default Currency"
           value={currency}
           onPress={handleCurrency}
+          colors={colors}
+        />
+        <SettingsRow
+          icon="wallet-outline"
+          iconBg="#FF5722"
+          label="Monthly Budgets"
+          value="Set limits"
+          onPress={handleBudgetSettings}
           colors={colors}
         />
       </View>

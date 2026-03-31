@@ -72,6 +72,15 @@ export const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 12,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  addMemberButton: {
+    padding: 4,
+  },
   memberRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -107,6 +116,7 @@ export const styles = StyleSheet.create({
   },
   memberBalance: {
     alignItems: "flex-end",
+    marginRight: 8,
   },
   memberBalanceAmount: {
     fontSize: 15,
@@ -120,6 +130,9 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     color: "#888",
     fontStyle: "italic",
+  },
+  removeMemberButton: {
+    padding: 4,
   },
   expenseRow: {
     flexDirection: "row",
@@ -222,5 +235,65 @@ export const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "80%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  modalBody: {
+    padding: 16,
+  },
+  friendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f5f5f5",
+  },
+  friendAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f0faf9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  friendAvatarText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#5bc5a7",
+  },
+  friendInfo: {
+    flex: 1,
+  },
+  friendName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+  },
+  friendEmail: {
+    fontSize: 12,
+    color: "#999",
   },
 });

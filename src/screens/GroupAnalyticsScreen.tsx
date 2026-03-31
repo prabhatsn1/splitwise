@@ -3,6 +3,7 @@ import { ScrollView, View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { useApp } from "../context/AppContext";
+import { useTheme } from "../context/ThemeContext";
 import { RootStackParamList, GroupAnalytics, SimplifiedDebt } from "../types";
 import { AnalyticsService } from "../services/analyticsService";
 import { MonthlySpendingChart } from "../components/MonthlySpendingChart";
@@ -25,6 +26,7 @@ const COLORS = [
 export default function GroupAnalyticsScreen() {
   const route = useRoute<GroupAnalyticsRouteProp>();
   const { state } = useApp();
+  const { colors } = useTheme();
   const { groupId } = route.params;
 
   const group = state.groups.find((g) => g.id === groupId);
@@ -100,10 +102,10 @@ export default function GroupAnalyticsScreen() {
       </View>
 
       {/* Monthly spending */}
-      <MonthlySpendingChart data={analytics.monthlySpending} />
+      <MonthlySpendingChart data={analytics.monthlySpending} colors={colors} />
 
       {/* Category breakdown */}
-      <CategoryPieChart data={analytics.categoryBreakdown} />
+      <CategoryPieChart data={analytics.categoryBreakdown} colors={colors} />
 
       {/* Member spending breakdown */}
       <View style={styles.sectionCard}>
