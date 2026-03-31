@@ -118,7 +118,10 @@ export default function FriendsScreen() {
       Alert.alert("Success", "Friend added successfully!");
     } catch (error: any) {
       if (error?.message === "already_friend") {
-        Alert.alert("Already friends", "You're already friends with this person.");
+        Alert.alert(
+          "Already friends",
+          "You're already friends with this person.",
+        );
       } else {
         Alert.alert("Error", "Failed to add friend. Please try again.");
       }
@@ -173,7 +176,9 @@ export default function FriendsScreen() {
       );
 
       // Contacts that didn't match any registered user
-      const registeredEmails = new Set(registered.map((u) => u.email.toLowerCase()));
+      const registeredEmails = new Set(
+        registered.map((u) => u.email.toLowerCase()),
+      );
       const registeredPhones = new Set(
         registered
           .map((u) => (u.phone || "").replace(/\D/g, ""))
@@ -206,17 +211,27 @@ export default function FriendsScreen() {
 
   const handleAddFromContacts = async (user: User) => {
     try {
-      await addFriend({ name: user.name, email: user.email, phone: user.phone });
+      await addFriend({
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+      });
       // Remove from discovery list
       setContactsResult((prev) =>
         prev
-          ? { ...prev, registered: prev.registered.filter((u) => u.id !== user.id) }
+          ? {
+              ...prev,
+              registered: prev.registered.filter((u) => u.id !== user.id),
+            }
           : prev,
       );
       Alert.alert("Added!", `${user.name} has been added as a friend.`);
     } catch (error: any) {
       if (error?.message === "already_friend") {
-        Alert.alert("Already friends", `You're already friends with ${user.name}.`);
+        Alert.alert(
+          "Already friends",
+          `You're already friends with ${user.name}.`,
+        );
       } else {
         Alert.alert("Error", "Could not add friend.");
       }

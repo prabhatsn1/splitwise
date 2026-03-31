@@ -586,7 +586,8 @@ export function useDataActions(
         const alreadyAdded = state.friends.some(
           (f) =>
             f.id === friend.id ||
-            (friend.email && f.email.toLowerCase() === friend.email.toLowerCase()),
+            (friend.email &&
+              f.email.toLowerCase() === friend.email.toLowerCase()),
         );
         if (alreadyAdded) {
           throw new Error("already_friend");

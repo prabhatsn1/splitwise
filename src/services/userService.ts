@@ -375,12 +375,7 @@ export class UserService {
     );
 
     if (error) {
-      throw new NetworkError(
-        "auth",
-        error.message,
-        false,
-        "login",
-      );
+      throw new NetworkError("auth", error.message, false, "login");
     }
   }
 

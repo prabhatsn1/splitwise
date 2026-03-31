@@ -80,7 +80,10 @@ export default function LoginScreen() {
           break;
         case "auth":
           setErrorModal({
-            title: error.action === "signup" ? "Sign Up Failed" : "Invalid Credentials",
+            title:
+              error.action === "signup"
+                ? "Sign Up Failed"
+                : "Invalid Credentials",
             message: error.message,
           });
           break;
