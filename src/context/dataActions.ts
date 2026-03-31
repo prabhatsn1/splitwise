@@ -551,10 +551,7 @@ export function useDataActions(
         const localData = await localStorage.getLocalData();
         dispatch({ type: "SET_FRIENDS", payload: localData.friends });
       } else {
-        const allUsers = await userService.getAllUsers();
-        const friends = allUsers.filter(
-          (user) => user.id !== state.currentUser?.id,
-        );
+        const friends = await userService.getFriends(state.currentUser!.id);
         dispatch({ type: "SET_FRIENDS", payload: friends });
         await localStorage.saveFriends(friends);
       }
@@ -579,18 +576,36 @@ export function useDataActions(
           await localStorage.addFriend(friend);
         } else {
           friend = await userService.createUser(friendData);
+
+          // Prevent adding duplicates (e.g. existing Supabase user already a friend)
+          const alreadyAdded = state.friends.some(
+            (f) =>
+              f.id === friend.id ||
+              (friend.email &&
+                f.email.toLowerCase() === friend.email.toLowerCase()),
+          );
+          if (alreadyAdded) {
+            throw new Error("already_friend");
+          }
+
+          // Persist the friendship so future loads read it from the friendships table
+          if (state.currentUser) {
+            await userService.saveFriendship(state.currentUser.id, friend);
+          }
           await localStorage.addFriend(friend);
         }
 
-        // Prevent adding duplicates (e.g. existing Supabase user already a friend)
-        const alreadyAdded = state.friends.some(
-          (f) =>
-            f.id === friend.id ||
-            (friend.email &&
-              f.email.toLowerCase() === friend.email.toLowerCase()),
-        );
-        if (alreadyAdded) {
-          throw new Error("already_friend");
+        // Prevent adding duplicates for offline mode
+        if (state.isOfflineMode) {
+          const alreadyAdded = state.friends.some(
+            (f) =>
+              f.id === friend.id ||
+              (friend.email &&
+                f.email.toLowerCase() === friend.email.toLowerCase()),
+          );
+          if (alreadyAdded) {
+            throw new Error("already_friend");
+          }
         }
 
         dispatch({ type: "ADD_FRIEND", payload: friend });
@@ -601,7 +616,13 @@ export function useDataActions(
         throw error;
       }
     },
-    [state.isOfflineMode, state.friends, userService, localStorage],
+    [
+      state.currentUser,
+      state.isOfflineMode,
+      state.friends,
+      userService,
+      localStorage,
+    ],
   );
 
   const updateProfile = useCallback(
@@ -704,20 +725,26 @@ export function useDataActions(
   const addMemberToGroup = useCallback(
     async (groupId: string, member: User): Promise<void> => {
       try {
-        const updatedGroup = await groupService.addMemberToGroup(groupId, member);
+        const updatedGroup = await groupService.addMemberToGroup(
+          groupId,
+          member,
+        );
         if (updatedGroup) {
           dispatch({ type: "UPDATE_GROUP", payload: updatedGroup });
           await localStorage.saveGroups(
-            state.groups.map((g) => (g.id === groupId ? updatedGroup : g))
+            state.groups.map((g) => (g.id === groupId ? updatedGroup : g)),
           );
         }
       } catch (error) {
         console.error("Failed to add member:", error);
-        dispatch({ type: "SET_ERROR", payload: "Failed to add member to group" });
+        dispatch({
+          type: "SET_ERROR",
+          payload: "Failed to add member to group",
+        });
         throw error;
       }
     },
-    [groupService, localStorage, state.groups]
+    [groupService, localStorage, state.groups],
   );
 
   const removeMemberFromGroup = useCallback(
@@ -727,7 +754,9 @@ export function useDataActions(
         if (!group) throw new Error("Group not found");
 
         // Calculate member's balance in the group
-        const groupExpenses = state.expenses.filter((e) => e.groupId === groupId);
+        const groupExpenses = state.expenses.filter(
+          (e) => e.groupId === groupId,
+        );
         let memberBalance = 0;
 
         groupExpenses.forEach((expense) => {
@@ -744,15 +773,18 @@ export function useDataActions(
         // Prevent removal if member has unsettled balance
         if (Math.abs(memberBalance) > 0.01) {
           throw new Error(
-            `Cannot remove member. They have an unsettled balance of ₹${Math.abs(memberBalance).toFixed(2)}`
+            `Cannot remove member. They have an unsettled balance of ₹${Math.abs(memberBalance).toFixed(2)}`,
           );
         }
 
-        const updatedGroup = await groupService.removeMemberFromGroup(groupId, memberId);
+        const updatedGroup = await groupService.removeMemberFromGroup(
+          groupId,
+          memberId,
+        );
         if (updatedGroup) {
           dispatch({ type: "UPDATE_GROUP", payload: updatedGroup });
           await localStorage.saveGroups(
-            state.groups.map((g) => (g.id === groupId ? updatedGroup : g))
+            state.groups.map((g) => (g.id === groupId ? updatedGroup : g)),
           );
         }
       } catch (error) {
@@ -760,7 +792,7 @@ export function useDataActions(
         throw error;
       }
     },
-    [groupService, localStorage, state.groups, state.expenses]
+    [groupService, localStorage, state.groups, state.expenses],
   );
 
   return {
