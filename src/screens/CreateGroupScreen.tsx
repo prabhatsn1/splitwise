@@ -31,7 +31,11 @@ export default function CreateGroupScreen() {
   const [simplifyDebts, setSimplifyDebts] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const availableMembers = [state.currentUser!, ...state.friends];
+  // Filter out current user from friends to avoid duplicates
+  const availableMembers = [
+    state.currentUser!,
+    ...state.friends.filter((friend) => friend.id !== state.currentUser?.id),
+  ];
 
   const filteredMembers = availableMembers.filter((member) => {
     if (!searchQuery.trim()) return true;
