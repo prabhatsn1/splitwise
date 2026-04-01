@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { ScrollView, View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useApp } from "../context/AppContext";
 import { useTheme } from "../context/ThemeContext";
 import {
@@ -36,7 +35,7 @@ export default function AnalyticsScreen() {
 
   useEffect(() => {
     calculateAnalytics();
-  }, [state.expenses, state.friends, state.currentUser]);
+  }, [state.expenses, state.friends, state.currentUser, state.budgets]);
 
   const calculateAnalytics = async () => {
     if (!state.currentUser) {
@@ -70,25 +69,10 @@ export default function AnalyticsScreen() {
       );
       setFrequencyData(frequency);
 
-      // Load budgets from AsyncStorage
-      const storedBudgets = await AsyncStorage.getItem("@splitwise_budgets");
-      const budgets: Record<string, number> = storedBudgets
-        ? JSON.parse(storedBudgets)
-        : {};
-
-      // Convert string values to numbers
-      const defaultBudgets: Record<string, number> = {};
-      Object.keys(budgets).forEach((key) => {
-        const value = parseFloat(budgets[key] as any);
-        if (!isNaN(value) && value > 0) {
-          defaultBudgets[key] = value;
-        }
-      });
-
       const budget = AnalyticsService.calculateBudgetComparison(
         state.expenses,
         state.currentUser.id,
-        defaultBudgets,
+        state.budgets,
       );
       setBudgetData(budget);
     } catch (error) {
