@@ -15,6 +15,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
 import { NetworkError, UserService } from "../services/userService";
+import { SUPABASE_CONFIG } from "../config";
 
 export default function LoginScreen() {
   const { loginUser, createUser, continueOffline, state } = useApp();
@@ -49,12 +50,12 @@ export default function LoginScreen() {
   const checkConnectivity = async () => {
     setConnectionStatus("checking");
     try {
-      // Use AbortController for timeout instead of timeout property
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      const response = await fetch("https://www.google.com/favicon.ico", {
+      const response = await fetch(`${SUPABASE_CONFIG.URL}/rest/v1/`, {
         method: "HEAD",
+        headers: { apikey: SUPABASE_CONFIG.ANON_KEY },
         signal: controller.signal,
       });
 

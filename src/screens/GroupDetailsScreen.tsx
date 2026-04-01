@@ -1,17 +1,20 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   Modal,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { useApp } from "../context/AppContext";
 import { RootStackParamList, User } from "../types";
+import { formatCurrency } from "../services/currencyService";
 import { styles } from "../styles/screens/GroupDetailsScreen.styles";
 
 type GroupDetailsRouteProp = RouteProp<RootStackParamList, "GroupDetails">;
@@ -23,44 +26,87 @@ export default function GroupDetailsScreen() {
   const { state, addMemberToGroup, removeMemberFromGroup } = useApp();
   const { groupId } = route.params;
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const group = state.groups.find((g) => g.id === groupId);
-  const groupExpenses = state.expenses
-    .filter((e) => e.groupId === groupId)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const group = useMemo(
+    () => state.groups.find((g) => g.id === groupId),
+    [state.groups, groupId],
+  );
 
-  // Calculate per-member balance within this group
-  const getMemberBalance = (member: User): number => {
-    let owedToMember = 0;
-    let memberOwes = 0;
+  const groupExpenses = useMemo(
+    () =>
+      state.expenses
+        .filter((e) => e.groupId === groupId)
+        .sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+        ),
+    [state.expenses, groupId],
+  );
+
+  const availableFriends = useMemo(
+    () =>
+      state.friends.filter(
+        (friend) => !group?.members.some((m) => m.id === friend.id),
+      ),
+    [state.friends, group],
+  );
+
+  const totalGroupSpend = useMemo(
+    () => groupExpenses.reduce((sum, e) => sum + e.amount, 0),
+    [groupExpenses],
+  );
+
+  // Calculate current user's net balance in this group, accounting for settlements
+  const myBalance = useMemo(() => {
+    if (!state.currentUser || !group) return 0;
+
+    const userId = state.currentUser.id;
+    let owedToMe = 0;
+    let iOwe = 0;
 
     groupExpenses.forEach((expense) => {
-      const memberSplit = expense.splits.find((s) => s.userId === member.id);
-      if (!memberSplit) return;
-
-      if (expense.paidBy.id === member.id) {
-        // Member paid; everyone else owes them
-        owedToMember += expense.amount - (memberSplit.amount ?? 0);
+      const mySplit = expense.splits.find((s) => s.userId === userId);
+      if (!mySplit) return;
+      if (expense.paidBy.id === userId) {
+        owedToMe += expense.amount - (mySplit.amount ?? 0);
       } else {
-        // Someone else paid; member owes their share
-        memberOwes += memberSplit.amount ?? 0;
+        iOwe += mySplit.amount ?? 0;
       }
     });
 
-    return owedToMember - memberOwes;
-  };
+    // Incorporate settlements between group members
+    const groupMemberIds = new Set(group.members.map((m) => m.id));
+    state.settlements.forEach((s) => {
+      if (!groupMemberIds.has(s.fromUserId) || !groupMemberIds.has(s.toUserId))
+        return;
+      if (s.toUserId === userId) {
+        // Someone paid me — clears what they owed
+        owedToMe = Math.max(0, owedToMe - s.amount);
+      } else if (s.fromUserId === userId) {
+        // I paid someone — clears what I owed
+        iOwe = Math.max(0, iOwe - s.amount);
+      }
+    });
+
+    return owedToMe - iOwe;
+  }, [groupExpenses, group, state.settlements, state.currentUser]);
 
   const handleAddMember = async (friend: User) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       await addMemberToGroup(groupId, friend);
       setShowAddMemberModal(false);
       Alert.alert("Success", `${friend.name} added to group`);
     } catch (error) {
       Alert.alert("Error", "Failed to add member to group");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleRemoveMember = async (member: User) => {
+    if (isSubmitting) return;
     if (member.id === state.currentUser?.id) {
       Alert.alert("Leave Group", "Are you sure you want to leave this group?", [
         { text: "Cancel", style: "cancel" },
@@ -68,6 +114,7 @@ export default function GroupDetailsScreen() {
           text: "Leave",
           style: "destructive",
           onPress: async () => {
+            setIsSubmitting(true);
             try {
               await removeMemberFromGroup(groupId, member.id);
               navigation.goBack();
@@ -76,6 +123,8 @@ export default function GroupDetailsScreen() {
                 "Cannot Leave Group",
                 error.message || "Failed to leave group",
               );
+            } finally {
+              setIsSubmitting(false);
             }
           },
         },
@@ -87,6 +136,7 @@ export default function GroupDetailsScreen() {
           text: "Remove",
           style: "destructive",
           onPress: async () => {
+            setIsSubmitting(true);
             try {
               await removeMemberFromGroup(groupId, member.id);
               Alert.alert("Success", `${member.name} removed from group`);
@@ -95,21 +145,14 @@ export default function GroupDetailsScreen() {
                 "Cannot Remove Member",
                 error.message || "Failed to remove member",
               );
+            } finally {
+              setIsSubmitting(false);
             }
           },
         },
       ]);
     }
   };
-
-  // Get friends not in the group
-  const availableFriends = state.friends.filter(
-    (friend) => !group?.members.some((m) => m.id === friend.id),
-  );
-
-  const myBalance = state.currentUser ? getMemberBalance(state.currentUser) : 0;
-
-  const totalGroupSpend = groupExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   if (!group) {
     return (
@@ -152,7 +195,7 @@ export default function GroupDetailsScreen() {
           </View>
           <View style={styles.heroStat}>
             <Text style={styles.heroStatValue}>
-              ₹{totalGroupSpend.toFixed(0)}
+              {formatCurrency(totalGroupSpend)}
             </Text>
             <Text style={styles.heroStatLabel}>Total</Text>
           </View>
@@ -174,7 +217,7 @@ export default function GroupDetailsScreen() {
                   { color: myBalance >= 0 ? "#4CAF50" : "#F44336" },
                 ]}
               >
-                ₹{Math.abs(myBalance).toFixed(2)}
+                {formatCurrency(Math.abs(myBalance))}
               </Text>
             </View>
           </View>
@@ -200,7 +243,8 @@ export default function GroupDetailsScreen() {
                 styles.memberAvatarChip,
                 { marginLeft: index === 0 ? 0 : -10 },
               ]}
-              onPress={() => handleRemoveMember(member)}
+              onLongPress={() => !isSubmitting && handleRemoveMember(member)}
+              delayLongPress={400}
             >
               <Text style={styles.memberAvatarChipText}>
                 {member.name.charAt(0).toUpperCase()}
@@ -229,17 +273,14 @@ export default function GroupDetailsScreen() {
       {/* Expenses in this group */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Expenses</Text>
-        {groupExpenses.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="receipt-outline" size={40} color="#ddd" />
-            <Text style={styles.emptyText}>No expenses yet</Text>
-          </View>
-        ) : (
-          groupExpenses.map((expense) => {
+        <FlatList
+          data={groupExpenses}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={false}
+          renderItem={({ item: expense }) => {
             const youPaid = expense.paidBy.id === state.currentUser?.id;
             return (
               <TouchableOpacity
-                key={expense.id}
                 style={styles.expenseRow}
                 onPress={() =>
                   navigation.navigate("ExpenseDetails", {
@@ -263,7 +304,7 @@ export default function GroupDetailsScreen() {
                 </View>
                 <View style={styles.expenseAmountCol}>
                   <Text style={styles.expenseAmount}>
-                    ₹{expense.amount.toFixed(2)}
+                    {formatCurrency(expense.amount)}
                   </Text>
                   <Text style={styles.expensePaidBy}>
                     {youPaid ? "You paid" : `${expense.paidBy.name} paid`}
@@ -271,8 +312,14 @@ export default function GroupDetailsScreen() {
                 </View>
               </TouchableOpacity>
             );
-          })
-        )}
+          }}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Ionicons name="receipt-outline" size={40} color="#ddd" />
+              <Text style={styles.emptyText}>No expenses yet</Text>
+            </View>
+          }
+        />
 
         <TouchableOpacity
           style={styles.addExpenseButton}
@@ -295,6 +342,20 @@ export default function GroupDetailsScreen() {
       >
         <Ionicons name="analytics" size={20} color="#fff" />
         <Text style={styles.analyticsButtonText}>View Group Analytics</Text>
+      </TouchableOpacity>
+
+      {/* Invite via QR / Link button */}
+      <TouchableOpacity
+        style={[
+          styles.analyticsButton,
+          { backgroundColor: "#3B82F6", marginTop: 8 },
+        ]}
+        onPress={() =>
+          navigation.navigate("GroupInvite", { groupId: group.id })
+        }
+      >
+        <Ionicons name="qr-code-outline" size={20} color="#fff" />
+        <Text style={styles.analyticsButtonText}>Invite via QR / Link</Text>
       </TouchableOpacity>
 
       {/* Add Member Modal */}
@@ -324,6 +385,7 @@ export default function GroupDetailsScreen() {
                   <TouchableOpacity
                     key={friend.id}
                     style={styles.friendRow}
+                    disabled={isSubmitting}
                     onPress={() => handleAddMember(friend)}
                   >
                     <View style={styles.friendAvatar}>
@@ -335,7 +397,11 @@ export default function GroupDetailsScreen() {
                       <Text style={styles.friendName}>{friend.name}</Text>
                       <Text style={styles.friendEmail}>{friend.email}</Text>
                     </View>
-                    <Ionicons name="add-circle" size={24} color="#5bc5a7" />
+                    {isSubmitting ? (
+                      <ActivityIndicator size="small" color="#5bc5a7" />
+                    ) : (
+                      <Ionicons name="add-circle" size={24} color="#5bc5a7" />
+                    )}
                   </TouchableOpacity>
                 ))
               )}

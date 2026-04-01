@@ -426,6 +426,22 @@ export default function SettingsScreen() {
           onPress={handleBudgetSettings}
           colors={colors}
         />
+        <SettingsRow
+          icon="pricetags-outline"
+          iconBg="#8B5CF6"
+          label="Manage Categories"
+          value="Custom labels"
+          onPress={() => navigation.navigate("CustomCategories")}
+          colors={colors}
+        />
+        <SettingsRow
+          icon="checkmark-done-outline"
+          iconBg="#16A34A"
+          label="Settlement History"
+          value={`${state.settlements.length} records`}
+          onPress={() => navigation.navigate("SettlementHistory")}
+          colors={colors}
+        />
       </View>
 
       {/* ── Data Management ─────────────────────────────────────────────────── */}

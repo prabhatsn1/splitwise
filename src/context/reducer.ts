@@ -77,6 +77,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         pendingExpenseIds: pendingAfterConfirm,
       };
     }
+    case "SET_SETTLEMENTS":
+      return { ...state, settlements: action.payload };
     case "ADD_SETTLEMENT":
       return {
         ...state,
@@ -110,6 +112,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
           (inv) => inv.id !== action.payload,
         ),
       };
+    case "SET_BUDGETS":
+      return { ...state, budgets: action.payload };
     case "SET_OFFLINE_MODE":
       return { ...state, isOfflineMode: action.payload };
     case "SET_AUTHENTICATED":

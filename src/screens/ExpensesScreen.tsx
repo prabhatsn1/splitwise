@@ -327,6 +327,14 @@ export default function ExpensesScreen() {
             </Text>
           </View>
           <TouchableOpacity
+            style={{ padding: 4, marginRight: 4 }}
+            onPress={() =>
+              navigation.navigate("EditExpense", { expenseId: expense.id })
+            }
+          >
+            <Ionicons name="create-outline" size={16} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
             style={{ padding: 4 }}
             onPress={() => handleDeleteExpense(expense.id)}
           >

@@ -7,6 +7,7 @@ import React, {
   ReactNode,
   useState,
 } from "react";
+import { AppState as RNAppState } from "react-native";
 import { UserService } from "../services/userService";
 import { GroupService } from "../services/groupService";
 import { ExpenseService } from "../services/expenseService";
@@ -31,10 +32,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     message: "",
   });
 
-  // Initialize services
-  const userService = new UserService();
-  const groupService = new GroupService();
-  const expenseService = new ExpenseService();
+  // Initialize services — wrapped in useRef so instances are created once,
+  // not on every render.
+  const userService = useRef(new UserService()).current;
+  const groupService = useRef(new GroupService()).current;
+  const expenseService = useRef(new ExpenseService()).current;
   const localStorage = LocalStorageService.getInstance();
 
   // Get data actions
@@ -136,6 +138,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [state.currentUser?.id, state.isOfflineMode]);
 
+  // Run recurring expense scheduler on startup and each time app comes to foreground
+  useEffect(() => {
+    if (!state.currentUser || state.isOfflineMode) return;
+
+    const runScheduler = () => {
+      dataActionsRef.current.checkAndCreateRecurringExpenses();
+    };
+
+    // Run once when the user is loaded
+    runScheduler();
+
+    const subscription = RNAppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        runScheduler();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [state.currentUser?.id, state.isOfflineMode]);
+
   // Initialize app
   useEffect(() => {
     const initializeApp = async () => {
@@ -175,6 +197,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
                   dataActions.loadUserExpenses(),
                   dataActions.loadFriends(),
                   dataActions.calculateUserBalance(),
+                  dataActions.loadBudgets(),
+                  dataActions.loadSettlements(),
                 ]);
               } else {
                 dispatch({ type: "SET_NEEDS_LOGIN", payload: true });

@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, AppAction } from "./types";
 import { User, Group, Expense, Balance, Settlement } from "../types";
 import { UserService } from "../services/userService";
@@ -9,6 +10,7 @@ import LocalStorageService from "../services/localStorageService";
 import NotificationService from "../services/notificationService";
 import SyncQueueService from "../services/syncQueueService";
 import InvitationService, { ShareChannel } from "../services/invitationService";
+import RecurringSchedulerService from "../services/recurringSchedulerService";
 
 export function useDataActions(
   state: AppState,
@@ -747,6 +749,41 @@ export function useDataActions(
     [groupService, localStorage, state.groups],
   );
 
+  const BUDGETS_STORAGE_KEY = "@splitwise_budgets";
+
+  const loadBudgets = useCallback(async (): Promise<void> => {
+    try {
+      const stored = await AsyncStorage.getItem(BUDGETS_STORAGE_KEY);
+      if (stored) {
+        const raw: Record<string, unknown> = JSON.parse(stored);
+        const parsed: Record<string, number> = {};
+        Object.entries(raw).forEach(([k, v]) => {
+          const n = parseFloat(v as string);
+          if (!isNaN(n) && n > 0) parsed[k] = n;
+        });
+        dispatch({ type: "SET_BUDGETS", payload: parsed });
+      }
+    } catch (error) {
+      console.error("Failed to load budgets:", error);
+    }
+  }, [dispatch]);
+
+  const saveBudgets = useCallback(
+    async (budgets: Record<string, number>): Promise<void> => {
+      try {
+        await AsyncStorage.setItem(
+          BUDGETS_STORAGE_KEY,
+          JSON.stringify(budgets),
+        );
+        dispatch({ type: "SET_BUDGETS", payload: budgets });
+      } catch (error) {
+        console.error("Failed to save budgets:", error);
+        throw error;
+      }
+    },
+    [dispatch],
+  );
+
   const removeMemberFromGroup = useCallback(
     async (groupId: string, memberId: string): Promise<void> => {
       try {
@@ -795,6 +832,80 @@ export function useDataActions(
     [groupService, localStorage, state.groups, state.expenses],
   );
 
+  const loadSettlements = useCallback(async (): Promise<void> => {
+    if (!state.currentUser) return;
+    try {
+      const settlements = await settlementService.getSettlementsByUserId(
+        state.currentUser.id,
+      );
+      dispatch({ type: "SET_SETTLEMENTS", payload: settlements });
+    } catch (error) {
+      console.error("Failed to load settlements:", error);
+    }
+  }, [state.currentUser, settlementService, dispatch]);
+
+  const checkAndCreateRecurringExpenses =
+    useCallback(async (): Promise<void> => {
+      if (!state.currentUser) return;
+      try {
+        let expenses: Expense[];
+        if (state.isOfflineMode) {
+          const localData = await localStorage.getLocalData();
+          expenses = localData.expenses;
+        } else {
+          expenses = await expenseService.getExpensesByUserId(
+            state.currentUser.id,
+          );
+        }
+
+        const scheduler = RecurringSchedulerService.getInstance();
+        const due = await scheduler.getDueExpenses(expenses);
+        let created = 0;
+
+        for (const { template } of due) {
+          try {
+            const { id: _id, ...templateData } = template;
+            const newExpenseData: Omit<Expense, "id"> = {
+              ...templateData,
+              date: new Date(),
+              recurring: undefined,
+            };
+
+            if (state.isOfflineMode) {
+              const expense: Expense = {
+                ...newExpenseData,
+                id: localStorage.generateOfflineId(),
+              };
+              await localStorage.addExpense(expense);
+              dispatch({ type: "ADD_EXPENSE", payload: expense });
+            } else {
+              const expense =
+                await expenseService.createExpense(newExpenseData);
+              await localStorage.addExpense(expense);
+              dispatch({ type: "ADD_EXPENSE", payload: expense });
+              dispatch({ type: "MARK_EXPENSE_CONFIRMED", payload: expense.id });
+            }
+            await scheduler.markAsRun(template.id);
+            created++;
+          } catch (err) {
+            console.error("Failed to auto-create recurring expense:", err);
+          }
+        }
+
+        if (created > 0) {
+          await calculateUserBalance();
+        }
+      } catch (error) {
+        console.error("Failed to check recurring expenses:", error);
+      }
+    }, [
+      state.currentUser,
+      state.isOfflineMode,
+      expenseService,
+      localStorage,
+      calculateUserBalance,
+    ]);
+
   return {
     loadUserGroups,
     createGroup,
@@ -803,6 +914,8 @@ export function useDataActions(
     updateExpense,
     deleteExpense,
     settleUp,
+    loadSettlements,
+    checkAndCreateRecurringExpenses,
     loadFriends,
     addFriend,
     calculateUserBalance,
@@ -817,5 +930,7 @@ export function useDataActions(
     markInvitationAccepted,
     addMemberToGroup,
     removeMemberFromGroup,
+    loadBudgets,
+    saveBudgets,
   };
 }
