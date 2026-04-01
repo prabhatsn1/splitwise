@@ -26,6 +26,7 @@ export interface AppState {
   settlements: Settlement[];
   invitations: FriendInvitation[];
   pendingExpenseIds: Set<string>;
+  budgets: Record<string, number>;
   loading: boolean;
   error: string | null;
   networkError: NetworkError | null;
@@ -55,6 +56,7 @@ export type AppAction =
   | { type: "REPLACE_EXPENSE"; payload: { tempId: string; expense: Expense } }
   | { type: "MARK_EXPENSE_CONFIRMED"; payload: string }
   | { type: "ADD_SETTLEMENT"; payload: Settlement }
+  | { type: "SET_SETTLEMENTS"; payload: Settlement[] }
   | { type: "UPDATE_GROUP"; payload: Group }
   | { type: "SET_OFFLINE_MODE"; payload: boolean }
   | { type: "SET_AUTHENTICATED"; payload: boolean }
@@ -67,6 +69,7 @@ export type AppAction =
   | { type: "ADD_INVITATION"; payload: FriendInvitation }
   | { type: "UPDATE_INVITATION"; payload: FriendInvitation }
   | { type: "REMOVE_INVITATION"; payload: string }
+  | { type: "SET_BUDGETS"; payload: Record<string, number> }
   | { type: "LOGOUT" };
 
 // Context interface
@@ -100,6 +103,8 @@ export interface AppContextType {
     note?: string,
     paymentMethod?: string,
   ) => Promise<void>;
+  loadSettlements: () => Promise<void>;
+  checkAndCreateRecurringExpenses: () => Promise<void>;
   getExpensesByCategory: (category: string) => Promise<Expense[]>;
   getExpensesByTags: (tags: string[]) => Promise<Expense[]>;
   getExpensesByLocation: (
@@ -125,6 +130,9 @@ export interface AppContextType {
   markInvitationAccepted: (invitationId: string) => Promise<void>;
   // Balance actions
   calculateUserBalance: () => Promise<void>;
+  // Budget actions
+  loadBudgets: () => Promise<void>;
+  saveBudgets: (budgets: Record<string, number>) => Promise<void>;
   // Group member actions
   addMemberToGroup: (groupId: string, member: User) => Promise<void>;
   removeMemberFromGroup: (groupId: string, memberId: string) => Promise<void>;
@@ -140,6 +148,7 @@ export const initialState: AppState = {
   settlements: [],
   invitations: [],
   pendingExpenseIds: new Set<string>(),
+  budgets: {},
   loading: false,
   error: null,
   networkError: null,
