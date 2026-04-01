@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DatabaseService } from "./database";
+import { Expense, Group } from "../types";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -11,14 +12,27 @@ export type SyncActionType =
   | "ADD_FRIEND"
   | "SETTLE_UP";
 
-export interface SyncQueueItem {
+/** Discriminated union — each action carries a strongly-typed payload. */
+export type SyncPayload =
+  | { action: "CREATE_EXPENSE"; payload: Omit<Expense, "id"> }
+  | {
+      action: "UPDATE_EXPENSE";
+      payload: { expenseId: string } & Partial<Omit<Expense, "id">>;
+    }
+  | { action: "DELETE_EXPENSE"; payload: { expenseId: string } }
+  | {
+      action: "CREATE_GROUP";
+      payload: { groupData: Omit<Group, "id">; userId: string };
+    }
+  | { action: "ADD_FRIEND"; payload: Record<string, unknown> }
+  | { action: "SETTLE_UP"; payload: Record<string, unknown> };
+
+export type SyncQueueItem = {
   id: string;
-  action: SyncActionType;
-  payload: any;
   createdAt: string; // ISO string
   retryCount: number;
   lastError?: string;
-}
+} & SyncPayload;
 
 export type SyncStatus = "idle" | "syncing" | "error";
 
@@ -60,20 +74,23 @@ class SyncQueueService {
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
-  async enqueue(action: SyncActionType, payload: any): Promise<string> {
+  async enqueue<A extends SyncActionType>(
+    action: A,
+    payload: Extract<SyncPayload, { action: A }>["payload"],
+  ): Promise<string> {
     // If Supabase is connected, writes go directly to the server — skip queue
     const db = DatabaseService.getInstance();
     if (db.isConnected()) {
       return "supabase-synced";
     }
 
-    const item: SyncQueueItem = {
+    const item = {
       id: `sq_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       action,
       payload,
       createdAt: new Date().toISOString(),
       retryCount: 0,
-    };
+    } as SyncQueueItem;
     this.queue.push(item);
     await this.persistQueue();
     return item.id;
