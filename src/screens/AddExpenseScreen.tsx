@@ -42,6 +42,7 @@ import {
 } from "../services/currencyService";
 import { parseReceipt } from "../services/ocrService";
 import DefaultSplitService from "../services/defaultSplitService";
+import CategoryService from "../services/categoryService";
 
 type AddExpenseNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -68,6 +69,10 @@ const CATEGORY_META: Record<string, { icon: string; color: string }> = {
   Travel: { icon: "airplane", color: "#3B82F6" },
   Other: { icon: "ellipsis-horizontal", color: "#6B7280" },
 };
+
+// Falls back to built-in meta for unknown custom categories
+const getCategoryMeta = (cat: string): { icon: string; color: string } =>
+  CATEGORY_META[cat] ?? { icon: "pricetag", color: "#8B5CF6" };
 
 const SUGGESTED_TAGS = [
   "dinner",
@@ -112,8 +117,8 @@ export default function AddExpenseScreen() {
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
 
   // Enhanced features
-  const [category, setCategory] =
-    useState<(typeof CATEGORIES)[number]>("Other");
+  const [category, setCategory] = useState<string>("Other");
+  const [allCategories, setAllCategories] = useState<string[]>([...CATEGORIES]);
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
   const [receipt, setReceipt] = useState<string>("");
@@ -173,6 +178,14 @@ export default function AddExpenseScreen() {
   useEffect(() => {
     getExchangeRates()
       .then(setExchangeRates)
+      .catch(() => {});
+  }, []);
+
+  // Load all categories (built-in + custom)
+  useEffect(() => {
+    CategoryService.getInstance()
+      .getAllCategories()
+      .then(setAllCategories)
       .catch(() => {});
   }, []);
 
@@ -561,7 +574,7 @@ export default function AddExpenseScreen() {
   }[] = [
     {
       key: "category",
-      icon: CATEGORY_META[category]?.icon || "grid",
+      icon: getCategoryMeta(category).icon,
       label: "Category",
       value: category !== "Other" ? category : undefined,
       active: category !== "Other",
@@ -631,8 +644,8 @@ export default function AddExpenseScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.categoryGrid}>
-        {CATEGORIES.map((cat) => {
-          const meta = CATEGORY_META[cat];
+        {allCategories.map((cat) => {
+          const meta = getCategoryMeta(cat);
           const isSelected = category === cat;
           return (
             <TouchableOpacity
