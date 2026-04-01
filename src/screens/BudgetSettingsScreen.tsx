@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useApp } from "../context/AppContext";
 
 const CATEGORIES = [
   "Food",
@@ -22,32 +22,27 @@ const CATEGORIES = [
   "Other",
 ];
 
-const STORAGE_KEY = "@splitwise_budgets";
-
 export default function BudgetSettingsScreen() {
   const { colors } = useTheme();
-  const [budgets, setBudgets] = useState<Record<string, string>>({});
+  const { state, saveBudgets } = useApp();
+
+  // Local state stores string values for text input editing
+  const [localBudgets, setLocalBudgets] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      Object.entries(state.budgets).map(([k, v]) => [k, String(v)]),
+    ),
+  );
   const [loading, setLoading] = useState(false);
-
-  React.useEffect(() => {
-    loadBudgets();
-  }, []);
-
-  const loadBudgets = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setBudgets(JSON.parse(stored));
-      }
-    } catch (error) {
-      console.error("Failed to load budgets:", error);
-    }
-  };
 
   const handleSave = async () => {
     setLoading(true);
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(budgets));
+      const parsed: Record<string, number> = {};
+      Object.entries(localBudgets).forEach(([k, v]) => {
+        const n = parseFloat(v);
+        if (!isNaN(n) && n > 0) parsed[k] = n;
+      });
+      await saveBudgets(parsed);
       Alert.alert("Success", "Monthly budgets saved successfully!");
     } catch (error) {
       Alert.alert("Error", "Failed to save budgets. Please try again.");
@@ -57,10 +52,10 @@ export default function BudgetSettingsScreen() {
   };
 
   const handleBudgetChange = (category: string, value: string) => {
-    setBudgets((prev) => ({ ...prev, [category]: value }));
+    setLocalBudgets((prev) => ({ ...prev, [category]: value }));
   };
 
-  const totalBudget = Object.values(budgets).reduce(
+  const totalBudget = Object.values(localBudgets).reduce(
     (sum, val) => sum + (parseFloat(val) || 0),
     0,
   );
@@ -180,7 +175,7 @@ export default function BudgetSettingsScreen() {
                     ₹
                   </Text>
                   <TextInput
-                    value={budgets[category] || ""}
+                    value={localBudgets[category] || ""}
                     onChangeText={(val) => handleBudgetChange(category, val)}
                     placeholder="0"
                     placeholderTextColor={colors.textTertiary}
