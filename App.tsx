@@ -33,14 +33,18 @@ import GroupsScreen from "./src/screens/GroupsScreen";
 import FriendsScreen from "./src/screens/FriendsScreen";
 import AccountScreen from "./src/screens/AccountScreen";
 import AddExpenseScreen from "./src/screens/AddExpenseScreen";
+import EditExpenseScreen from "./src/screens/EditExpenseScreen";
 import CreateGroupScreen from "./src/screens/CreateGroupScreen";
 import SettleUpScreen from "./src/screens/SettleUpScreen";
+import SettlementHistoryScreen from "./src/screens/SettlementHistoryScreen";
 import ExpenseDetailsScreen from "./src/screens/ExpenseDetailsScreen";
 import GroupDetailsScreen from "./src/screens/GroupDetailsScreen";
+import GroupInviteScreen from "./src/screens/GroupInviteScreen";
 import GroupAnalyticsScreen from "./src/screens/GroupAnalyticsScreen";
 import AnalyticsScreen from "./src/screens/AnalyticsScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
 import BudgetSettingsScreen from "./src/screens/BudgetSettingsScreen";
+import CustomCategoriesScreen from "./src/screens/CustomCategoriesScreen";
 import InviteFriendScreen from "./src/screens/InviteFriendScreen";
 
 // Import services
@@ -241,6 +245,11 @@ function AppContent() {
           options={{ title: "Add Expense" }}
         />
         <Stack.Screen
+          name="EditExpense"
+          component={EditExpenseScreen}
+          options={{ title: "Edit Expense" }}
+        />
+        <Stack.Screen
           name="CreateGroup"
           component={CreateGroupScreen}
           options={{ title: "Create Group" }}
@@ -251,6 +260,11 @@ function AppContent() {
           options={{ title: "Settle Up" }}
         />
         <Stack.Screen
+          name="SettlementHistory"
+          component={SettlementHistoryScreen}
+          options={{ title: "Settlement History" }}
+        />
+        <Stack.Screen
           name="ExpenseDetails"
           component={ExpenseDetailsScreen}
           options={{ title: "Expense Details" }}
@@ -259,6 +273,11 @@ function AppContent() {
           name="GroupDetails"
           component={GroupDetailsScreen}
           options={{ title: "Group Details" }}
+        />
+        <Stack.Screen
+          name="GroupInvite"
+          component={GroupInviteScreen}
+          options={{ title: "Invite to Group" }}
         />
         <Stack.Screen
           name="GroupAnalytics"
@@ -279,6 +298,11 @@ function AppContent() {
           name="BudgetSettings"
           component={BudgetSettingsScreen}
           options={{ title: "Monthly Budgets" }}
+        />
+        <Stack.Screen
+          name="CustomCategories"
+          component={CustomCategoriesScreen}
+          options={{ title: "Expense Categories" }}
         />
         <Stack.Screen
           name="InviteFriend"
