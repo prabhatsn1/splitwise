@@ -76,14 +76,7 @@ export interface Expense {
   splitBetween: User[];
   splitType: SplitType;
   splits: AdvancedSplit[];
-  category:
-    | "Food"
-    | "Transport"
-    | "Entertainment"
-    | "Bills"
-    | "Shopping"
-    | "Travel"
-    | "Other";
+  category: string;
   date: Date;
   groupId?: string;
   receipt?: string; // Base64 image or file path
@@ -194,11 +187,15 @@ export interface CategoryBudget {
 export type RootStackParamList = {
   Main: undefined;
   AddExpense: { groupId?: string };
+  EditExpense: { expenseId: string };
   CreateGroup: undefined;
   ExpenseDetails: { expenseId: string };
   GroupDetails: { groupId: string };
   GroupAnalytics: { groupId: string };
+  GroupInvite: { groupId: string };
   SettleUp: { userId: string };
+  SettlementHistory: undefined;
+  CustomCategories: undefined;
   Analytics: undefined;
   Settings: undefined;
   BudgetSettings: undefined;
