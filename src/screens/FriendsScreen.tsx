@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import * as Contacts from "expo-contacts";
 import { useApp } from "../context/AppContext";
@@ -29,6 +29,8 @@ export default function FriendsScreen() {
     cancelInvitation,
     resendInvitation,
     markInvitationAccepted,
+    loadSettlements,
+    calculateUserBalance,
   } = useApp();
   const navigation = useNavigation<FriendsNavProp>();
   const [showAddFriend, setShowAddFriend] = useState(false);
@@ -48,13 +50,26 @@ export default function FriendsScreen() {
   );
   const [loadingContacts, setLoadingContacts] = useState(false);
 
+  // Reload settlements and recalculate balances when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      const refreshData = async () => {
+        if (state.currentUser) {
+          await loadSettlements();
+          await calculateUserBalance();
+        }
+      };
+      refreshData();
+    }, [])
+  );
+
   // Load invitations on mount
   useEffect(() => {
     loadInvitations();
   }, []);
 
   const calculateFriendBalance = (friend: User) => {
-    // Use centralized balance calculation from AppContext
+    // Always use centralized balance calculation from AppContext
     const userBalance = state.balances.find(
       (balance) => balance.userId === state.currentUser?.id,
     );
@@ -67,36 +82,7 @@ export default function FriendsScreen() {
       return friendOwesUser - userOwesFriend;
     }
 
-    // Fallback calculation if no balance data exists
-    let totalOwed = 0;
-    let totalOwing = 0;
-
-    state.expenses.forEach((expense) => {
-      const userSplit = expense.splits.find(
-        (split) => split.userId === state.currentUser?.id,
-      );
-      const friendSplit = expense.splits.find(
-        (split) => split.userId === friend.id,
-      );
-
-      if (userSplit && friendSplit) {
-        if (
-          expense.paidBy.id === state.currentUser?.id &&
-          expense.splitBetween.some((u) => u.id === friend.id)
-        ) {
-          // You paid, friend owes you
-          totalOwed += friendSplit.amount ?? 0;
-        } else if (
-          expense.paidBy.id === friend.id &&
-          expense.splitBetween.some((u) => u.id === state.currentUser?.id)
-        ) {
-          // Friend paid, you owe friend
-          totalOwing += userSplit.amount ?? 0;
-        }
-      }
-    });
-
-    return totalOwed - totalOwing;
+    return 0;
   };
 
   const handleAddFriend = async () => {
@@ -298,7 +284,6 @@ export default function FriendsScreen() {
     });
   }, [
     state.friends,
-    state.expenses,
     state.balances,
     balanceFilter,
     searchQuery,

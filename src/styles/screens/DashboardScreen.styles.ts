@@ -42,6 +42,14 @@ export const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#fff",
   },
+  refreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#E8F8F3",
+    justifyContent: "center",
+    alignItems: "center",
+  },
 
   // Balance Card
   balanceCard: {

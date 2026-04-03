@@ -87,6 +87,7 @@ export const styles = StyleSheet.create({
   toolbarContainer: {
     paddingHorizontal: SPACING.xl,
     paddingBottom: SPACING.md,
+    paddingTop: SPACING.lg,
   },
   toolbar: {
     flexDirection: "row",
@@ -251,11 +252,14 @@ export const styles = StyleSheet.create({
   splitTypePill: {
     flex: 1,
     paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.xs,
     alignItems: "center",
+    justifyContent: "center",
     borderRadius: 10,
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: COLORS.border,
+    minHeight: 36,
   },
   splitTypePillSelected: {
     backgroundColor: COLORS.primary,
@@ -265,6 +269,8 @@ export const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.sm,
     color: COLORS.textPrimary,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
+    textAlign: "center",
+    numberOfLines: 1,
   },
   splitTypePillTextSelected: {
     color: COLORS.textInverse,

@@ -767,8 +767,9 @@ export default function AddExpenseScreen() {
                   styles.splitTypePillText,
                   splitType === type && styles.splitTypePillTextSelected,
                 ]}
+                numberOfLines={1}
               >
-                {type.charAt(0).toUpperCase() + type.slice(1)}
+                {type === "percentage" ? "%" : type.charAt(0).toUpperCase() + type.slice(1)}
               </Text>
             </TouchableOpacity>
           ),

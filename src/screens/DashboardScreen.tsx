@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   StatusBar,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -38,7 +39,25 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export default function DashboardScreen() {
   const navigation = useNavigation<DashboardNavigationProp>();
-  const { state } = useApp();
+  const { state, loadUserGroups, loadUserExpenses, loadFriends, calculateUserBalance, loadSettlements } = useApp();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        loadUserGroups(),
+        loadUserExpenses(),
+        loadFriends(),
+        loadSettlements(),
+      ]);
+      await calculateUserBalance();
+    } catch (error) {
+      console.error("Failed to refresh data:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const getUserBalanceBreakdown = () => {
     const userBalance = state.balances.find(
@@ -133,6 +152,14 @@ export default function DashboardScreen() {
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={["#5bc5a7"]}
+          tintColor="#5bc5a7"
+        />
+      }
     >
       <StatusBar barStyle="dark-content" />
 

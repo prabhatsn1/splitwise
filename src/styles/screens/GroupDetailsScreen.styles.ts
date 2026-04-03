@@ -330,4 +330,37 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     color: "#999",
   },
+  settleUpRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f5f5f5",
+  },
+  settleUpAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f0faf9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  settleUpAvatarText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#5bc5a7",
+  },
+  settleUpInfo: {
+    flex: 1,
+  },
+  settleUpName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+  },
+  settleUpBalance: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
 });

@@ -193,14 +193,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 dispatch({ type: "SET_CURRENT_USER", payload: user });
                 dispatch({ type: "SET_OFFLINE_MODE", payload: false });
 
-                await Promise.all([
-                  dataActions.loadUserGroups(),
-                  dataActions.loadUserExpenses(),
-                  dataActions.loadFriends(),
-                  dataActions.calculateUserBalance(),
-                  dataActions.loadBudgets(),
-                  dataActions.loadSettlements(),
+                // Load all data with retry logic
+                const loadWithRetry = async (fn: () => Promise<any>, retries = 3) => {
+                  for (let i = 0; i < retries; i++) {
+                    try {
+                      await fn();
+                      return;
+                    } catch (error) {
+                      if (i === retries - 1) throw error;
+                      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+                    }
+                  }
+                };
+
+                await Promise.allSettled([
+                  loadWithRetry(() => dataActions.loadUserGroups()),
+                  loadWithRetry(() => dataActions.loadUserExpenses()),
+                  loadWithRetry(() => dataActions.loadFriends()),
+                  loadWithRetry(() => dataActions.loadBudgets()),
+                  loadWithRetry(() => dataActions.loadSettlements()),
                 ]);
+                
+                await dataActions.calculateUserBalance();
               } else {
                 dispatch({ type: "SET_NEEDS_LOGIN", payload: true });
               }

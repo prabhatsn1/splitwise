@@ -91,6 +91,37 @@ export default function GroupDetailsScreen() {
     return owedToMe - iOwe;
   }, [groupExpenses, group, state.settlements, state.currentUser]);
 
+  const calculateMemberBalance = (memberId: string) => {
+    if (!state.currentUser || !group) return 0;
+
+    const userId = state.currentUser.id;
+    let owedToMe = 0;
+    let iOwe = 0;
+
+    groupExpenses.forEach((expense) => {
+      const mySplit = expense.splits.find((s) => s.userId === userId);
+      const memberSplit = expense.splits.find((s) => s.userId === memberId);
+      if (!mySplit || !memberSplit) return;
+
+      if (expense.paidBy.id === userId && memberId !== userId) {
+        owedToMe += memberSplit.amount ?? 0;
+      } else if (expense.paidBy.id === memberId && userId !== expense.paidBy.id) {
+        iOwe += mySplit.amount ?? 0;
+      }
+    });
+
+    // Incorporate settlements
+    state.settlements.forEach((s) => {
+      if (s.fromUserId === memberId && s.toUserId === userId) {
+        owedToMe = Math.max(0, owedToMe - s.amount);
+      } else if (s.fromUserId === userId && s.toUserId === memberId) {
+        iOwe = Math.max(0, iOwe - s.amount);
+      }
+    });
+
+    return owedToMe - iOwe;
+  };
+
   const handleAddMember = async (friend: User) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -221,6 +252,46 @@ export default function GroupDetailsScreen() {
               </Text>
             </View>
           </View>
+        </View>
+      )}
+
+      {/* Settle Up in Group */}
+      {state.currentUser && group.members.length > 1 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Settle Up</Text>
+          {group.members
+            .filter((m) => m.id !== state.currentUser?.id)
+            .map((member) => {
+              const memberBalance = calculateMemberBalance(member.id);
+              if (memberBalance === 0) return null;
+              return (
+                <TouchableOpacity
+                  key={member.id}
+                  style={styles.settleUpRow}
+                  onPress={() => navigation.navigate("SettleUp", { userId: member.id })}
+                >
+                  <View style={styles.settleUpAvatar}>
+                    <Text style={styles.settleUpAvatarText}>
+                      {member.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.settleUpInfo}>
+                    <Text style={styles.settleUpName}>{member.name}</Text>
+                    <Text
+                      style={[
+                        styles.settleUpBalance,
+                        { color: memberBalance > 0 ? "#4CAF50" : "#F44336" },
+                      ]}
+                    >
+                      {memberBalance > 0
+                        ? `owes you ${formatCurrency(Math.abs(memberBalance))}`
+                        : `you owe ${formatCurrency(Math.abs(memberBalance))}`}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#888" />
+                </TouchableOpacity>
+              );
+            })}
         </View>
       )}
 

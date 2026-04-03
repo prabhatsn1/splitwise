@@ -465,8 +465,9 @@ export default function EditExpenseScreen() {
                   styles.splitTypePillText,
                   splitType === type && styles.splitTypePillTextSelected,
                 ]}
+                numberOfLines={1}
               >
-                {type.charAt(0).toUpperCase() + type.slice(1)}
+                {type === "percentage" ? "%" : type.charAt(0).toUpperCase() + type.slice(1)}
               </Text>
             </TouchableOpacity>
           ),
@@ -677,8 +678,8 @@ export default function EditExpenseScreen() {
           <Ionicons name="add" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        {tags.map((tag) => (
+      <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 8, columnGap: "2%" }}>
+        {tags.map((tag, index) => (
           <TouchableOpacity
             key={tag}
             style={{
@@ -689,10 +690,11 @@ export default function EditExpenseScreen() {
               paddingHorizontal: 12,
               paddingVertical: 6,
               gap: 4,
+              width: "32%",
             }}
             onPress={() => setTags(tags.filter((t) => t !== tag))}
           >
-            <Text style={{ color: colors.primary, fontSize: 13 }}>#{tag}</Text>
+            <Text style={{ color: colors.primary, fontSize: 13, flex: 1 }} numberOfLines={1}>#{tag}</Text>
             <Ionicons name="close" size={14} color={colors.primary} />
           </TouchableOpacity>
         ))}
@@ -759,6 +761,7 @@ export default function EditExpenseScreen() {
                     recurringConfig.frequency === freq &&
                       styles.splitTypePillTextSelected,
                   ]}
+                  numberOfLines={1}
                 >
                   {freq.charAt(0).toUpperCase() + freq.slice(1)}
                 </Text>

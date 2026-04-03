@@ -183,24 +183,9 @@ export class UserService {
         return this.toUser(existing[0] as UserRow);
       }
 
+      // If user doesn't exist in database, create a local-only friend
+      // (they haven't signed up yet)
       const userId = this.generateUserId();
-      const now = new Date().toISOString();
-
-      const { error } = await client.from("users").insert({
-        id: crypto.randomUUID ? crypto.randomUUID() : userId,
-        user_id: userId,
-        name: userData.name,
-        email: userData.email.toLowerCase(),
-        phone: userData.phone || null,
-        avatar: userData.avatar || null,
-        created_at: now,
-        updated_at: now,
-      });
-
-      if (error) {
-        throw new NetworkError("general", error.message, true, "signup");
-      }
-
       const user: User = {
         ...userData,
         id: userId,

@@ -57,8 +57,27 @@ const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator<RootStackParamList>();
 
 function TabNavigator() {
-  const { state } = useApp();
+  const { state, loadUserGroups, loadUserExpenses, loadFriends, calculateUserBalance, loadSettlements } = useApp();
   const { colors, isDark } = useTheme();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        loadUserGroups(),
+        loadUserExpenses(),
+        loadFriends(),
+        loadSettlements(),
+      ]);
+      await calculateUserBalance();
+    } catch (error) {
+      console.error("Failed to refresh data:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   return (
     <Tab.Navigator
@@ -96,12 +115,24 @@ function TabNavigator() {
           fontWeight: "bold",
         },
         headerRight: () => (
-          <Ionicons
-            name={state.isOfflineMode ? "cloud-offline" : "cloud-done"}
-            size={20}
-            color={colors.headerText}
-            style={{ marginRight: 16 }}
-          />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginRight: 16 }}>
+            <TouchableOpacity
+              onPress={handleRefresh}
+              disabled={refreshing}
+              style={{ opacity: refreshing ? 0.5 : 1 }}
+            >
+              <Ionicons
+                name="refresh"
+                size={22}
+                color={colors.headerText}
+              />
+            </TouchableOpacity>
+            <Ionicons
+              name={state.isOfflineMode ? "cloud-offline" : "cloud-done"}
+              size={20}
+              color={colors.headerText}
+            />
+          </View>
         ),
       })}
     >

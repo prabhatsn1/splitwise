@@ -119,7 +119,11 @@ export class SettlementService {
         this.toSettlement(row as SettlementRow),
       );
     }
-    return [];
+    // Fallback to local storage
+    const localData = await this.localStorage.getLocalData();
+    return localData.settlements.filter(
+      (s) => s.fromUserId === userId || s.toUserId === userId,
+    );
   }
 
   async getSettlementsByGroupId(groupId: string): Promise<Settlement[]> {
@@ -133,7 +137,9 @@ export class SettlementService {
         this.toSettlement(row as SettlementRow),
       );
     }
-    return [];
+    // Fallback to local storage
+    const localData = await this.localStorage.getLocalData();
+    return localData.settlements.filter((s) => s.groupId === groupId);
   }
 
   async deleteSettlement(id: string): Promise<boolean> {
