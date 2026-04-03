@@ -35,13 +35,13 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_CONTACTS"
-      ]
+      ],
+      "kotlinVersion": "2.0.21"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-dev-client",
       [
         "expo-contacts",
         {
@@ -54,7 +54,8 @@
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to capture receipt images."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "./plugins/withAndroidBrowserFix.js"
     ],
     "extra": {
       "eas": {

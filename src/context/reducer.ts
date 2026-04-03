@@ -34,8 +34,19 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
     case "SET_FRIENDS":
       return { ...state, friends: action.payload };
-    case "ADD_FRIEND":
+    case "ADD_FRIEND": {
+      // Prevent duplicate friends in state
+      const isDuplicate = state.friends.some(
+        (f) =>
+          f.id === action.payload.id ||
+          (action.payload.email &&
+            f.email.toLowerCase() === action.payload.email.toLowerCase()),
+      );
+      if (isDuplicate) {
+        return state;
+      }
       return { ...state, friends: [...state.friends, action.payload] };
+    }
     case "UPDATE_BALANCES":
       return { ...state, balances: action.payload };
     case "DELETE_EXPENSE": {

@@ -26,8 +26,10 @@ export class NetworkService {
   }
 
   private async initialize() {
+    console.log('[NetworkService] Initializing...');
     // Initial connectivity check
     const isConnected = await this.testInternetConnection();
+    console.log('[NetworkService] Initial connection test result:', isConnected);
     this.updateStatus({
       isConnected,
       type: "unknown",
@@ -36,7 +38,9 @@ export class NetworkService {
 
     // Set up periodic connectivity checks (every 30 seconds)
     setInterval(async () => {
+      console.log('[NetworkService] Running periodic connectivity check...');
       const isConnected = await this.testInternetConnection();
+      console.log('[NetworkService] Periodic check result:', isConnected);
       this.updateStatus({
         isConnected,
         type: this.currentStatus.type,
@@ -46,13 +50,20 @@ export class NetworkService {
   }
 
   private updateStatus(newStatus: NetworkStatus) {
+    console.log('[NetworkService] Updating status:', {
+      old: this.currentStatus,
+      new: newStatus
+    });
     // Only notify if status actually changed
     if (
       newStatus.isConnected !== this.currentStatus.isConnected ||
       newStatus.isInternetReachable !== this.currentStatus.isInternetReachable
     ) {
+      console.log('[NetworkService] Status changed, notifying listeners');
       this.currentStatus = newStatus;
       this.notifyListeners(newStatus);
+    } else {
+      console.log('[NetworkService] Status unchanged, skipping notification');
     }
   }
 
@@ -94,10 +105,15 @@ export class NetworkService {
 
   // Simple ping test to verify actual internet connectivity
   public async testInternetConnection(timeout = 5000): Promise<boolean> {
+    console.log('[NetworkService] Testing internet connection...');
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      const timeoutId = setTimeout(() => {
+        console.log('[NetworkService] Connection test timed out after', timeout, 'ms');
+        controller.abort();
+      }, timeout);
 
+      console.log('[NetworkService] Fetching https://www.google.com/favicon.ico');
       const response = await fetch("https://www.google.com/favicon.ico", {
         method: "HEAD",
         signal: controller.signal,
@@ -105,8 +121,18 @@ export class NetworkService {
       });
 
       clearTimeout(timeoutId);
+      console.log('[NetworkService] Response received:', {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText
+      });
       return response.ok;
     } catch (error) {
+      console.error('[NetworkService] Connection test failed:', error);
+      console.error('[NetworkService] Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error)
+      });
       return false;
     }
   }

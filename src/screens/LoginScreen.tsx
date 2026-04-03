@@ -44,25 +44,46 @@ export default function LoginScreen() {
   } | null>(null);
 
   useEffect(() => {
+    console.log('[LoginScreen] Component mounted, starting connectivity check');
     checkConnectivity();
   }, []);
 
   const checkConnectivity = async () => {
+    console.log('[LoginScreen] Checking connectivity...');
     setConnectionStatus("checking");
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => {
+        console.log('[LoginScreen] Connection check timed out after 5000ms');
+        controller.abort();
+      }, 5000);
 
-      const response = await fetch(`${SUPABASE_CONFIG.URL}/rest/v1/`, {
+      const url = `${SUPABASE_CONFIG.URL}/rest/v1/`;
+      console.log('[LoginScreen] Fetching:', url);
+      console.log('[LoginScreen] Headers:', { apikey: SUPABASE_CONFIG.ANON_KEY.substring(0, 20) + '...' });
+      
+      const response = await fetch(url, {
         method: "HEAD",
         headers: { apikey: SUPABASE_CONFIG.ANON_KEY },
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
+      console.log('[LoginScreen] Response received:', {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText
+      });
       setConnectionStatus(response.ok ? "online" : "offline");
+      console.log('[LoginScreen] Connection status set to:', response.ok ? "online" : "offline");
     } catch (error) {
+      console.error('[LoginScreen] Connection check failed:', error);
+      console.error('[LoginScreen] Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error)
+      });
       setConnectionStatus("offline");
+      console.log('[LoginScreen] Connection status set to: offline');
     }
   };
 

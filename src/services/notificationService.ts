@@ -29,35 +29,43 @@ class NotificationService {
 
   /** Request permission and register for push notifications. */
   async registerForPushNotifications(): Promise<string | null> {
-    if (Platform.OS === "android") {
-      await Notifications.setNotificationChannelAsync("default", {
-        name: "default",
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: "#5bc5a7",
-      });
-    }
-
-    const { status: existingStatus } =
-      await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-
-    if (existingStatus !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-
-    if (finalStatus !== "granted") {
-      console.log("Push notification permission denied");
-      return null;
-    }
-
     try {
-      const tokenData = await Notifications.getExpoPushTokenAsync();
-      this.expoPushToken = tokenData.data;
-      return this.expoPushToken;
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("default", {
+          name: "default",
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: "#5bc5a7",
+        });
+      }
+
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== "granted") {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== "granted") {
+        console.log("[NotificationService] Push notification permission denied");
+        return null;
+      }
+
+      // Try to get push token - this requires Firebase setup for Android
+      try {
+        const tokenData = await Notifications.getExpoPushTokenAsync();
+        this.expoPushToken = tokenData.data;
+        console.log("[NotificationService] Push token registered successfully");
+        return this.expoPushToken;
+      } catch (error) {
+        console.warn("[NotificationService] Failed to get push token (Firebase not configured):", error instanceof Error ? error.message : error);
+        console.log("[NotificationService] Local notifications will still work");
+        return null;
+      }
     } catch (error) {
-      console.log("Failed to get push token:", error);
+      console.error("[NotificationService] Failed to register for push notifications:", error);
       return null;
     }
   }

@@ -548,12 +548,14 @@ export function useDataActions(
   };
 
   const loadFriends = useCallback(async (): Promise<void> => {
+    if (!state.currentUser) return;
+
     try {
       if (state.isOfflineMode) {
         const localData = await localStorage.getLocalData();
         dispatch({ type: "SET_FRIENDS", payload: localData.friends });
       } else {
-        const friends = await userService.getFriends(state.currentUser!.id);
+        const friends = await userService.getFriends(state.currentUser.id);
         dispatch({ type: "SET_FRIENDS", payload: friends });
         await localStorage.saveFriends(friends);
       }
@@ -568,6 +570,16 @@ export function useDataActions(
   const addFriend = useCallback(
     async (friendData: Omit<User, "id">): Promise<void> => {
       try {
+        // Check for duplicates BEFORE creating the user
+        const alreadyAdded = state.friends.some(
+          (f) =>
+            friendData.email &&
+            f.email.toLowerCase() === friendData.email.toLowerCase(),
+        );
+        if (alreadyAdded) {
+          throw new Error("already_friend");
+        }
+
         let friend: User;
 
         if (state.isOfflineMode) {
@@ -579,14 +591,9 @@ export function useDataActions(
         } else {
           friend = await userService.createUser(friendData);
 
-          // Prevent adding duplicates (e.g. existing Supabase user already a friend)
-          const alreadyAdded = state.friends.some(
-            (f) =>
-              f.id === friend.id ||
-              (friend.email &&
-                f.email.toLowerCase() === friend.email.toLowerCase()),
-          );
-          if (alreadyAdded) {
+          // Check again with the returned friend ID (in case createUser returned existing user)
+          const alreadyAddedById = state.friends.some((f) => f.id === friend.id);
+          if (alreadyAddedById) {
             throw new Error("already_friend");
           }
 
@@ -595,19 +602,6 @@ export function useDataActions(
             await userService.saveFriendship(state.currentUser.id, friend);
           }
           await localStorage.addFriend(friend);
-        }
-
-        // Prevent adding duplicates for offline mode
-        if (state.isOfflineMode) {
-          const alreadyAdded = state.friends.some(
-            (f) =>
-              f.id === friend.id ||
-              (friend.email &&
-                f.email.toLowerCase() === friend.email.toLowerCase()),
-          );
-          if (alreadyAdded) {
-            throw new Error("already_friend");
-          }
         }
 
         dispatch({ type: "ADD_FRIEND", payload: friend });

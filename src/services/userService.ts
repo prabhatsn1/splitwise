@@ -364,6 +364,10 @@ export class UserService {
   async getFriends(currentUserId: string): Promise<User[]> {
     if (this.isSupabaseAvailable()) {
       const client = this.getClient();
+      const db = DatabaseService.getInstance();
+
+      // Get the Supabase auth UUID for the current user
+      const authUserId = db.getUserId();
 
       // Rows where the current user is the one who added the friend
       const { data: rows, error } = await client
@@ -371,7 +375,7 @@ export class UserService {
         .select(
           "friend_id, friend_name, friend_email, friend_phone, friend_avatar",
         )
-        .eq("user_id", currentUserId)
+        .eq("user_id", authUserId)
         .eq("status", "active");
 
       if (error) {
@@ -401,11 +405,15 @@ export class UserService {
   async saveFriendship(currentUserId: string, friend: User): Promise<void> {
     if (this.isSupabaseAvailable()) {
       const client = this.getClient();
+      const db = DatabaseService.getInstance();
       const now = new Date().toISOString();
+
+      // Get the Supabase auth UUID for the current user
+      const authUserId = db.getUserId();
 
       const { error } = await client.from("friendships").upsert(
         {
-          user_id: currentUserId,
+          user_id: authUserId,
           friend_id: friend.id,
           friend_name: friend.name,
           friend_email: friend.email,
