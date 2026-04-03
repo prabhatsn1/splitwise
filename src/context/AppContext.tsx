@@ -107,6 +107,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const refreshSettlements = () => {
       clearTimeout(settlementTimer);
       settlementTimer = setTimeout(() => {
+        dataActionsRef.current.loadSettlements();
         dataActionsRef.current.calculateUserBalance();
       }, 300);
     };

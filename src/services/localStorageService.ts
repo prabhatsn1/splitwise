@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { User, Group, Expense, Balance } from "../types";
+import { User, Group, Expense, Balance, Settlement } from "../types";
 
 interface LocalData {
   currentUser: User | null;
@@ -7,6 +7,7 @@ interface LocalData {
   expenses: Expense[];
   friends: User[];
   balances: Balance[];
+  settlements: Settlement[];
   lastSyncDate: string | null;
 }
 
@@ -126,6 +127,16 @@ class LocalStorageService {
     await this.saveLocalData({ balances });
   }
 
+  async saveSettlements(settlements: Settlement[]): Promise<void> {
+    await this.saveLocalData({ settlements });
+  }
+
+  async addSettlement(settlement: Settlement): Promise<void> {
+    const data = await this.getLocalData();
+    const updatedSettlements = [...data.settlements, settlement];
+    await this.saveLocalData({ settlements: updatedSettlements });
+  }
+
   async updateLastSyncDate(): Promise<void> {
     await this.saveLocalData({ lastSyncDate: new Date().toISOString() });
   }
@@ -137,6 +148,7 @@ class LocalStorageService {
       expenses: [],
       friends: [],
       balances: [],
+      settlements: [],
       lastSyncDate: null,
     };
   }

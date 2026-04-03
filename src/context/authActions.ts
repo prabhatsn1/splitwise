@@ -372,6 +372,7 @@ export function useAuthActions(
         const offlineExpenses = offlineData.expenses || [];
         const offlineGroups = offlineData.groups || [];
         const offlineFriends = offlineData.friends || [];
+        const offlineSettlements = offlineData.settlements || [];
 
         // Switch to online mode
         dispatch({ type: "SET_CURRENT_USER", payload: user });
@@ -466,6 +467,27 @@ export function useAuthActions(
               });
             } catch (error) {
               console.error("Failed to migrate expense:", expense, error);
+            }
+          }
+        }
+
+        // Migrate settlements
+        const { SettlementService } = await import("../services/settlementService");
+        const settlementService = SettlementService.getInstance();
+        for (const settlement of offlineSettlements) {
+          if (settlement.id.startsWith("offline_") || settlement.id.startsWith("s_")) {
+            try {
+              await settlementService.createSettlement({
+                fromUserId: settlement.fromUserId,
+                toUserId: settlement.toUserId,
+                amount: settlement.amount,
+                currency: settlement.currency,
+                paymentMethod: settlement.paymentMethod,
+                note: settlement.note,
+                groupId: settlement.groupId,
+              });
+            } catch (error) {
+              console.error("Failed to migrate settlement:", settlement, error);
             }
           }
         }

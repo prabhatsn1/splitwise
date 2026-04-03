@@ -78,6 +78,21 @@ export class SettlementService {
           created_at: date.toISOString(),
           owner_id: this.getOwnerId(),
         });
+    } else {
+      // Offline mode - save to local storage
+      const settlement: Settlement = {
+        id: `offline_${settlementId}`,
+        fromUserId: data.fromUserId,
+        toUserId: data.toUserId,
+        amount: data.amount,
+        date,
+        note: data.note,
+        currency: data.currency,
+        paymentMethod: data.paymentMethod,
+        groupId: data.groupId,
+      };
+      await this.localStorage.addSettlement(settlement);
+      return settlement;
     }
 
     return {
@@ -87,6 +102,9 @@ export class SettlementService {
       amount: data.amount,
       date,
       note: data.note,
+      currency: data.currency,
+      paymentMethod: data.paymentMethod,
+      groupId: data.groupId,
     };
   }
 

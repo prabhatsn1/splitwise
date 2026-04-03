@@ -73,6 +73,20 @@ export function useDataActions(
           }
         });
 
+        // Subtract settlements from balances
+        const settlements = state.settlements || [];
+        settlements.forEach((settlement) => {
+          if (settlement.fromUserId === currentUserId) {
+            // User paid someone
+            balance.owes[settlement.toUserId] =
+              (balance.owes[settlement.toUserId] || 0) - settlement.amount;
+          } else if (settlement.toUserId === currentUserId) {
+            // User received payment
+            balance.owedBy[settlement.fromUserId] =
+              (balance.owedBy[settlement.fromUserId] || 0) - settlement.amount;
+          }
+        });
+
         // Simplify balances
         Object.keys(balance.owes).forEach((otherId) => {
           const userOwes = balance.owes[otherId] || 0;
@@ -89,6 +103,14 @@ export function useDataActions(
               balance.owedBy[otherId] = Math.abs(netAmount);
             }
           }
+        });
+
+        // Clean up zero or negative balances
+        Object.keys(balance.owes).forEach((key) => {
+          if (balance.owes[key] <= 0) delete balance.owes[key];
+        });
+        Object.keys(balance.owedBy).forEach((key) => {
+          if (balance.owedBy[key] <= 0) delete balance.owedBy[key];
         });
 
         const totalOwed = Object.values(balance.owedBy).reduce(
@@ -114,7 +136,7 @@ export function useDataActions(
         dispatch({ type: "SET_ERROR", payload: "Failed to calculate balance" });
       }
     }
-  }, [state.currentUser, state.isOfflineMode, expenseService, localStorage]);
+  }, [state.currentUser, state.isOfflineMode, state.settlements, expenseService, localStorage]);
 
   const loadUserGroups = useCallback(async (): Promise<void> => {
     if (!state.currentUser) return;
@@ -385,6 +407,9 @@ export function useDataActions(
           note,
         });
 
+        // Save to local storage
+        await localStorage.addSettlement(settlement);
+
         dispatch({ type: "ADD_SETTLEMENT", payload: settlement });
 
         // Notify about the settlement
@@ -403,7 +428,7 @@ export function useDataActions(
         dispatch({ type: "SET_ERROR", payload: "Failed to record settlement" });
       }
     },
-    [state.currentUser, state.friends, calculateUserBalance],
+    [state.currentUser, state.friends, localStorage, calculateUserBalance],
   );
 
   const deleteExpense = useCallback(
@@ -801,6 +826,20 @@ export function useDataActions(
           }
         });
 
+        // Subtract settlements from balance
+        const groupSettlements = state.settlements.filter(
+          (s) => s.groupId === groupId,
+        );
+        groupSettlements.forEach((settlement) => {
+          if (settlement.fromUserId === memberId) {
+            // Member paid someone
+            memberBalance += settlement.amount;
+          } else if (settlement.toUserId === memberId) {
+            // Member received payment
+            memberBalance -= settlement.amount;
+          }
+        });
+
         // Prevent removal if member has unsettled balance
         if (Math.abs(memberBalance) > 0.01) {
           throw new Error(
@@ -823,20 +862,26 @@ export function useDataActions(
         throw error;
       }
     },
-    [groupService, localStorage, state.groups, state.expenses],
+    [groupService, localStorage, state.groups, state.expenses, state.settlements],
   );
 
   const loadSettlements = useCallback(async (): Promise<void> => {
     if (!state.currentUser) return;
     try {
-      const settlements = await settlementService.getSettlementsByUserId(
-        state.currentUser.id,
-      );
-      dispatch({ type: "SET_SETTLEMENTS", payload: settlements });
+      if (state.isOfflineMode) {
+        const localData = await localStorage.getLocalData();
+        dispatch({ type: "SET_SETTLEMENTS", payload: localData.settlements });
+      } else {
+        const settlements = await settlementService.getSettlementsByUserId(
+          state.currentUser.id,
+        );
+        dispatch({ type: "SET_SETTLEMENTS", payload: settlements });
+        await localStorage.saveSettlements(settlements);
+      }
     } catch (error) {
       console.error("Failed to load settlements:", error);
     }
-  }, [state.currentUser, settlementService, dispatch]);
+  }, [state.currentUser, state.isOfflineMode, settlementService, localStorage, dispatch]);
 
   const checkAndCreateRecurringExpenses =
     useCallback(async (): Promise<void> => {

@@ -460,6 +460,31 @@ export class ExpenseService {
       }
     });
 
+    // Subtract settlements from balances
+    const { SettlementService } = await import('./settlementService');
+    const settlementService = SettlementService.getInstance();
+    const settlements = await settlementService.getSettlementsByUserId(userId);
+
+    settlements.forEach((settlement) => {
+      if (settlement.fromUserId === userId) {
+        // User paid someone
+        owes[settlement.toUserId] = (owes[settlement.toUserId] || 0) - settlement.amount;
+        totalBalance += settlement.amount;
+      } else if (settlement.toUserId === userId) {
+        // User received payment
+        owedBy[settlement.fromUserId] = (owedBy[settlement.fromUserId] || 0) - settlement.amount;
+        totalBalance -= settlement.amount;
+      }
+    });
+
+    // Clean up zero or negative balances
+    Object.keys(owes).forEach((key) => {
+      if (owes[key] <= 0) delete owes[key];
+    });
+    Object.keys(owedBy).forEach((key) => {
+      if (owedBy[key] <= 0) delete owedBy[key];
+    });
+
     return { userId, owes, owedBy, totalBalance };
   }
 
